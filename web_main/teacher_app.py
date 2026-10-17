@@ -275,7 +275,9 @@ def render_teacher_page(teacher: dict) -> None:
                         margin=dict(l=20, r=20, t=30, b=20),
                         paper_bgcolor=THEME_CARD_BG,
                         font=dict(color=THEME_TEXT),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.15),
+                        # 图例改右侧竖排，避免底部水平图例遮挡最下方扇区标签
+                        legend=dict(orientation="v", x=1.02, y=0.5,
+                                    xanchor="left", yanchor="middle"),
                     )
                     st.plotly_chart(pie, use_container_width=True)
 

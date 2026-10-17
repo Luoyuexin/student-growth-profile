@@ -410,7 +410,7 @@ def _render_reminders(student: dict) -> None:
                 unsafe_allow_html=True,
             )
             return
-        st.caption(f"共 {len(items)} 条需要跟进的提示（已达标项不再罗列；点击规则编号标签可展开条款原文与阈值）")
+        st.caption(f"共 {len(items)} 条需要跟进的提示（已达标项不再罗列；点击规则编号标签可展开条款说明）")
         for idx, it in enumerate(items):
             rule = it.get("rule", "")
             rule_cfg = HANDBOOK_RULES.get(rule, {})
@@ -433,17 +433,15 @@ def _render_reminders(student: dict) -> None:
                 f'<div style="font-size:14px;color:{tx};">{it.get("text", "")}</div></div>',
                 unsafe_allow_html=True,
             )
-            with st.expander(f"📖 {rule} 条款原文与阈值", expanded=False):
-                st.markdown(f"**{rule} · {rule_name}**")
-                if rule_cfg.get("desc"):
-                    st.markdown(f"条款内容：{rule_cfg['desc']}")
-                threshold = {k: v for k, v in rule_cfg.items() if k not in ("name", "desc")}
-                if threshold:
-                    st.caption("可编程阈值（config_setting.HANDBOOK_RULES）：")
-                    st.code(json.dumps(threshold, ensure_ascii=False, indent=2),
-                            language="json")
-                else:
-                    st.caption("该条款无可编程阈值参数。")
+            with st.expander(f"📖 条款说明 · {rule} {rule_name}", expanded=False):
+                # 面向用户的手册条款可读文案；规则未配置 user_clause 时回退 desc
+                clause = rule_cfg.get("user_clause") or rule_cfg.get("desc", "")
+                st.markdown(
+                    f'<div style="font-size:14px;color:{THEME_TEXT};line-height:1.7;">'
+                    f'{clause}</div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption("依据：《2024 级本科生手册》，具体认定与处理以学院规定为准。")
         st.caption("以上为客观提示，具体认定与处理以学院规定为准。")
 
 
@@ -500,7 +498,7 @@ def _render_overview(student: dict) -> None:
     # 保证页面重算的二级得分与流水线落库口径一致
     enriched = hb_rules.enrich_record(dict(student))
     dim_scores = scoring.compute_dimension_scores(enriched)
-    tags = scoring.build_wordcloud_tags(dim_scores)
+    tags = scoring.build_wordcloud_tags(dim_scores, record=enriched)
 
     # 顶部标题与个人信息卡片
     h1, h2 = st.columns([3, 1])
@@ -649,7 +647,7 @@ def _render_overview(student: dict) -> None:
         card = _card("学生画像词云", accent=THEME_PRIMARY)
         with card:
             if tags:
-                # 自由散布式词云：无 mask / 无轮廓，白底直接平铺卡片内居中
+                # 半身人形剪影词云：mask 轮廓内密集填词，外沿细轮廓线勾勒
                 fig = chart_builder.build_wordcloud(tags)
                 buf = io.BytesIO()
                 fig.savefig(buf, format="png", dpi=100, bbox_inches="tight",

@@ -408,13 +408,49 @@ def build_treemap(sub_scores: dict, dim_label: str, dim_key: str = None,
 
 
 # ---------------------------------------------------------------------------
-# 词云（自由散布式：无 mask、无轮廓、白底融进卡片）
+# 词云（半身人形剪影 mask + 细轮廓线）
 # ---------------------------------------------------------------------------
-def build_wordcloud(tags: list, width: int = 600, height: int = 800):
+def _bust_mask(width: int = 600, height: int = 620):
+    """生成「半身人像」剪影 mask（头部 + 肩部 + 上胸），供 WordCloud 使用。
+
+    构型：正圆头部（直径约占高度 26%）+ 颈部 + 圆角肩部（椭圆帽）+ 上胸
+    （直边矩形），底部在约 62% 高度处平切收束；全身像（手臂 / 双腿）刻意不取。
+    返回 numpy 数组：0 = 可布词区域，255 = 留空区域（wordcloud 约定）。
+    """
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    img = Image.new("L", (width, height), 255)
+    draw = ImageDraw.Draw(img)
+    cx = width // 2
+
+    # 头部：正圆，直径约 26% 高度
+    r_head = int(height * 0.13)
+    head_cy = int(height * 0.165)
+    draw.ellipse([cx - r_head, head_cy - r_head, cx + r_head, head_cy + r_head], fill=0)
+
+    # 颈部：竖矩形，上端没入头部、下端没入肩部
+    neck_half = int(r_head * 0.55)
+    draw.rectangle([cx - neck_half, head_cy + int(r_head * 0.7),
+                    cx + neck_half, int(height * 0.40)], fill=0)
+
+    # 肩部 + 上胸：椭圆帽（圆角肩线）下接直边矩形，底部在 62% 高度平切
+    sh_cy = int(height * 0.42)
+    sh_rx = int(width * 0.40)
+    sh_ry = int(height * 0.145)
+    draw.ellipse([cx - sh_rx, sh_cy - sh_ry, cx + sh_rx, sh_cy + sh_ry], fill=0)
+    cut_y = int(height * 0.62)
+    draw.rectangle([cx - sh_rx, sh_cy, cx + sh_rx, cut_y], fill=0)
+
+    return np.array(img)
+
+
+def build_wordcloud(tags: list, width: int = 600, height: int = 620):
     """构建学生画像词云图（Matplotlib Figure）。
 
     tags: [(标签, 权重), ...]，字号与权重正相关规则不变。
-    自由分布样式：不使用 mask 与轮廓线，词可横可斜，白底融入卡片。
+    使用半身人形剪影 mask（头部 + 肩部 + 上胸），人形外沿以主题边框色细线勾勒；
+    词密集填充轮廓内部，配色沿用主题低饱和色板（小字只用深色系保证可读）。
     返回 matplotlib.figure.Figure；若 wordcloud 不可用或无中文字体，回退为水平条形词频图。
     """
     import matplotlib
@@ -430,12 +466,15 @@ def build_wordcloud(tags: list, width: int = 600, height: int = 800):
         wc = WordCloud(
             width=width,
             height=height,
+            mask=_bust_mask(width, height),
+            contour_width=1,
+            contour_color=THEME_CARD_BORDER,   # 主题边框色细轮廓线，勾勒人形外沿
             background_color=THEME_CARD_BG,
-            prefer_horizontal=0.65,   # 允许约 1/3 斜向词，贴近自然词云效果
-            relative_scaling=0.5,
-            margin=8,
-            max_words=80,
-            min_font_size=12,
+            prefer_horizontal=0.85,
+            relative_scaling=0.4,
+            margin=1,
+            max_words=200,
+            min_font_size=9,
             max_font_size=160,
             color_func=_wc_color_func,
             font_path=font_path,
@@ -651,21 +690,53 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
     # ---- 计算节点宽度 ----
     root_lines = [root["title"]] + ([root["line2"]] if root.get("line2") else [])
     root_w = _node_w(root_lines)
-    child_ws, leaf_ws = [], []
+    child_ws = []
     for ch in children:
         c_lines = [ch["title"]] + ([ch["line2"]] if ch.get("line2") else [])
         child_ws.append(_node_w(c_lines))
-        leaf_ws.append(_node_w([ch["leaf"]], FONT_SMALL) if ch.get("leaf") else 0)
     max_child_w = max(child_ws) if child_ws else 0
+
+    # 纵向布局专用：叶子长标签拆两行（第一行个人值，第二行对比值，行内「｜」
+    # 分隔改为两段），相邻叶子间距不足时优先缩字号（最小 10px），不允许重叠。
+    leaf_font = FONT_SMALL
+    leaf_lines_v: list = [None] * len(children)
+    if orientation == "v":
+        V_BUDGET = 1000.0   # 展开向像素预算（数据坐标 1:1 = 像素）
+        while True:
+            leaf_lines_v = []
+            for ch in children:
+                if ch.get("leaf"):
+                    parts = [p.strip() for p in ch["leaf"].split("｜") if p.strip()]
+                    # _add_node 两行布局中 lines[1] 为视觉上行：第一行个人值、第二行对比值
+                    leaf_lines_v.append([" ".join(parts[1:]), parts[0]]
+                                        if len(parts) > 1 else [parts[0]])
+                else:
+                    leaf_lines_v.append(None)
+            leaf_ws_v = [
+                (_node_w(ll, leaf_font) if ll else 0) for ll in leaf_lines_v
+            ]
+            span_need = (
+                sum(max(leaf_ws_v[i], child_ws[i]) for i in range(len(children)))
+                + VGAP * max(0, len(children) - 1) + 2 * 24.0
+            )
+            if span_need <= V_BUDGET or leaf_font <= 10:
+                break
+            leaf_font = max(10.0, leaf_font - 0.5)
+    else:
+        leaf_ws_v = [
+            (_node_w([ch["leaf"]], FONT_SMALL) if ch.get("leaf") else 0)
+            for ch in children
+        ]
+    leaf_ws = leaf_ws_v
     max_leaf_w = max(leaf_ws) if leaf_ws else 0
 
     # ---- tidy 布局：叶子等距（按节点实际厚度变距），父节点取子节点中点 ----
-    # 展开向（span）节点厚度：横向=节点高度，纵向=节点宽度（叶子优先）
+    # 展开向（span）节点厚度：横向=节点高度，纵向=max(叶子宽, 二级节点宽)（防重叠）
     child_pos = []      # 每个二级节点的 (厚度, 宽, has_leaf)
     for i, ch in enumerate(children):
         has_leaf = bool(ch.get("leaf"))
         if orientation == "v":
-            thick = (leaf_ws[i] if has_leaf else child_ws[i])
+            thick = max(leaf_ws[i], child_ws[i])
         else:
             thick = (NODE_H1 if has_leaf else NODE_H2)
         child_pos.append((thick, child_ws[i], has_leaf))
@@ -681,10 +752,19 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
     root_sc = (centers[0] + centers[-1]) / 2.0 if centers else 60.0
 
     # ---- 抽象坐标：depth（层级向）与 slot（展开向），最后按方向映射到 (x, y) ----
-    # depth 坐标（横向时向右；纵向时向下）
-    d0, d1 = 20.0, 20.0 + root_w + HGAP
-    d2 = d1 + max_child_w + HGAP
-    depth_max = d2 + max_leaf_w + 30.0
+    # depth 坐标（横向时向右；纵向时向下）。
+    # 注意：节点在 depth 向的厚度 = 横向为节点宽，纵向为节点高（NODE_H2）。
+    if orientation == "v":
+        d0 = 20.0
+        d1 = d0 + NODE_H2 + HGAP
+        d2 = d1 + NODE_H2 + HGAP
+        depth_max = d2 + NODE_H2 + 20.0
+    else:
+        d0, d1 = 20.0, 20.0 + root_w + HGAP
+        d2 = d1 + max_child_w + HGAP
+        depth_max = d2 + max_leaf_w + 30.0
+    # 根 / 二级节点在 depth 向的实际厚度（连线端点用，避免线停在文字边缘）
+    root_dthick = root_w if orientation == "h" else float(NODE_H2)
 
     def _sc(slot_idx):
         """slot 序号 -> 展开向中心坐标。"""
@@ -701,7 +781,7 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
     edge_x, edge_y = [], []
 
     def _add_node(d_left, sc, w, h, lines, fill, font_color, hover,
-                  fonts=(FONT, FONT_SMALL)):
+                  fonts=(FONT, FONT_SMALL), bold_line=0):
         # 节点矩形在 depth 向占 w，在 span 向占 h（纵向时反过来）
         if orientation == "v":
             x0r, y0r = _map(d_left, sc - w / 2)
@@ -724,13 +804,16 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
                 xanchor="center", yanchor="middle",
             ))
         else:
+            # 注意 y 轴反向：cy-10 为视觉上行，cy+8 为视觉下行
+            text0 = f"<b>{lines[0]}</b>" if bold_line == 0 else lines[0]
+            text1 = f"<b>{lines[1]}</b>" if bold_line == 1 else lines[1]
             annotations.append(dict(
-                x=cx, y=cy + 8, text=f"<b>{lines[0]}</b>", showarrow=False,
+                x=cx, y=cy + 8, text=text0, showarrow=False,
                 font=dict(size=fonts[0], color=font_color),
                 xanchor="center", yanchor="middle",
             ))
             annotations.append(dict(
-                x=cx, y=cy - 10, text=lines[1], showarrow=False,
+                x=cx, y=cy - 10, text=text1, showarrow=False,
                 font=dict(size=fonts[1], color=font_color),
                 xanchor="center", yanchor="middle",
             ))
@@ -767,14 +850,24 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
         font_color = THEME_CARD_BG if (score is not None and float(score) >= 55) else THEME_TEXT
         c_lines = [ch["title"]] + ([ch["line2"]] if ch.get("line2") else [])
         _add_node(d1, sc, cw, NODE_H2, c_lines, fill, font_color, ch.get("hover"))
-        _add_elbow(d0 + root_w, root_sc, d1, sc)
+        _add_elbow(d0 + root_dthick, root_sc, d1, sc)
         if has_leaf:
-            lw = _node_w([ch["leaf"]], FONT_SMALL)
-            _add_node(d2, sc, lw, NODE_H1,
-                      [ch["leaf"]], THEME_PRIMARY_LIGHT, THEME_TEXT,
-                      ch.get("leaf_hover") or ch.get("hover"),
-                      fonts=(FONT_SMALL, FONT_SMALL))
-            _add_elbow(d1 + cw, sc, d2, sc)
+            # 纵向：叶子为两行文本节点（个人值 / 对比值），字号可按需缩至 10px
+            child_dthick = cw if orientation == "h" else float(NODE_H2)
+            if orientation == "v":
+                l_lines = leaf_lines_v[slot] or [ch["leaf"]]
+                _add_node(d2, sc, leaf_ws[slot], NODE_H2,
+                          l_lines, THEME_PRIMARY_LIGHT, THEME_TEXT,
+                          ch.get("leaf_hover") or ch.get("hover"),
+                          fonts=(leaf_font, leaf_font),
+                          bold_line=1 if len(l_lines) > 1 else 0)
+            else:
+                lw = _node_w([ch["leaf"]], FONT_SMALL)
+                _add_node(d2, sc, lw, NODE_H1,
+                          [ch["leaf"]], THEME_PRIMARY_LIGHT, THEME_TEXT,
+                          ch.get("leaf_hover") or ch.get("hover"),
+                          fonts=(FONT_SMALL, FONT_SMALL))
+            _add_elbow(d1 + child_dthick, sc, d2, sc)
 
     fig = go.Figure()
     # 连线（在最底层）
@@ -796,12 +889,14 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
         fig.add_annotation(ann)
 
     if orientation == "v":
+        # 顶部 / 底部加大边距：根节点标签与最深叶子标签均完整可见、不被裁切
+        V_PAD_T, V_PAD_B = 50.0, 50.0
         fig.update_xaxes(range=[-20, span_max + 20], visible=False)
-        fig.update_yaxes(range=[depth_max + 20, -20], visible=False,
+        fig.update_yaxes(range=[depth_max + V_PAD_B, -V_PAD_T], visible=False,
                          scaleanchor="x", scaleratio=1)
         fig.update_layout(
-            height=max(430, depth_max + 60),
-            margin=dict(l=20, r=20, t=20, b=20),
+            height=max(430, depth_max + V_PAD_T + V_PAD_B + 60),
+            margin=dict(l=20, r=20, t=30, b=30),
         )
     else:
         fig.update_xaxes(range=[-10, depth_max + 10], visible=False)
@@ -840,15 +935,20 @@ def build_compare_bar(self_label: str, self_val: float,
         text=[f"{v:.1f}" for v in vals],
         textposition="outside",
     ))
-    fig.update_layout(
+    layout = dict(
         height=200,
-        margin=dict(l=10, r=40, t=30 if title else 10, b=10),
+        # y 轴类目标签（本人 / 同类型均值（××型）/ 年级均值）较长，交给 automargin
+        # 自适应左侧宽度，避免第一个类目标签被裁切；容器不留负边距。
+        margin=dict(l=10, r=48, t=30 if title else 10, b=10),
         xaxis=dict(range=[0, 100], gridcolor=THEME_GRID, title="得分"),
-        yaxis=dict(autorange="reversed"),
-        title=dict(text=title, font=dict(size=14, color=THEME_TEXT)) if title else None,
+        yaxis=dict(autorange="reversed", automargin=True),
         paper_bgcolor=THEME_CARD_BG,
         plot_bgcolor=THEME_CARD_BG,
         font=dict(color=THEME_TEXT),
         showlegend=False,
     )
+    if title:
+        # 仅在确有标题时写入 layout.title：置 None 会被 plotly.js 渲染成 "undefined"
+        layout["title"] = dict(text=title, font=dict(size=14, color=THEME_TEXT))
+    fig.update_layout(**layout)
     return fig
