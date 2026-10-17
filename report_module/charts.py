@@ -1,0 +1,854 @@
+"""report_module 可视化图表模块。
+
+基于 Plotly / Matplotlib 生成交互图表，所有图表均由分析结果动态计算生成，
+非前端写死静态数据：
+1. 六维能力雷达图（学业 / 身心 / 社会参与 / 生活适应 / 品德 / 非认知）。
+2. 成长趋势折线图（基于当前综合评分回溯模拟历史学期走势）。
+3. 班级风险等级分布图（饼图 / 柱状图）。
+4. 学生画像词云图（Matplotlib + wordcloud，人形/圆形 mask，中文渲染）。
+5. 维度分析树（Plotly Treemap 矩形树图，学生端可切换 / 教师端六维）。
+6. 维度内二级指标柱状图。
+"""
+
+from __future__ import annotations
+
+import colorsys
+import os
+import random
+
+import plotly.graph_objects as go
+
+from config_setting import (
+    DIMENSION_ORDER, DIMENSION_LABELS, DIMENSION_COLORS,
+    THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_PRIMARY_LIGHT, THEME_BG,
+    THEME_CARD_BG, THEME_CARD_BORDER,
+    THEME_TEXT, THEME_TEXT_SUB, THEME_GRID, RISK_SOFT_BG,
+    RISK_SOFT_BORDER, RISK_SOFT_TEXT,
+    CHART_SECONDARY, CHART_ACCENT, CHART_NEUTRAL,
+    RISK_CHART_COLORS, SCORE_COLORSCALE,
+    WORDCLOUD_PALETTE, WORDCLOUD_DEEP_POOL, WORDCLOUD_MID_POOL,
+    RADAR_SELF_FILL, RADAR_REF_COLORS, RADAR_REF_FILL_OPACITY,
+    TREND_FILL,
+)
+
+
+# ---------------------------------------------------------------------------
+# 主题色板（全部集中自 config_setting，本文件不再硬编码色值）
+# ---------------------------------------------------------------------------
+THEME_SECONDARY = CHART_SECONDARY   # 灰青（向后兼容别名）
+THEME_ACCENT = CHART_ACCENT         # 暖驼（向后兼容别名）
+
+RISK_COLORS = RISK_CHART_COLORS
+
+
+# ---------------------------------------------------------------------------
+# 维度同色系色阶（学生端六个维度分页面使用）
+# ---------------------------------------------------------------------------
+# 把得分渐变的色相由统一橄榄绿换成各维度主题色，亮度档位保持不变，
+# 因此「颜色越深 = 得分越高」的读法、以及白色文字的对比度都与原来一致。
+_HUE_SCALE_LEVELS = (0.92, 0.64, 0.37)   # 与 SCORE_COLORSCALE 三档亮度对齐
+_HUE_SCALE_CACHE: dict = {}
+
+
+def _hex_to_rgb(hex_color: str):
+    c = hex_color.lstrip("#")
+    return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb):
+    return "#{:02X}{:02X}{:02X}".format(
+        *(max(0, min(255, int(round(v)))) for v in rgb)
+    )
+
+
+def build_hue_colorscale(base_hex: str) -> list:
+    """按维度主题色生成同色系连续色阶（浅色=低分，深色=高分）。
+
+    保持 base_hex 的色相与饱和度，仅按固定亮度档位重新取样，
+    因此换色不改变原有「深浅表示得分高低」的视觉含义。
+    """
+    if base_hex in _HUE_SCALE_CACHE:
+        return _HUE_SCALE_CACHE[base_hex]
+    r, g, b = _hex_to_rgb(base_hex)
+    h, _l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+    scale = [
+        [pos, _rgb_to_hex(tuple(v * 255 for v in colorsys.hls_to_rgb(h, lv, s)))]
+        for pos, lv in zip((0.0, 0.5, 1.0), _HUE_SCALE_LEVELS)
+    ]
+    _HUE_SCALE_CACHE[base_hex] = scale
+    return scale
+
+# ---------------------------------------------------------------------------
+# 中文 / CJK 字体（词云与 matplotlib 渲染需要）
+# ---------------------------------------------------------------------------
+def get_cjk_font_path() -> str | None:
+    """查找系统中可用的中文字体，供 wordcloud / matplotlib 使用。
+
+    优先 Windows 微软雅黑；找不到则返回 None（调用方需降级）。
+    """
+    candidates = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simsun.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/System/Library/Fonts/PingFang.ttc",
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _dark_enough_pool(palette: list, max_lightness: float = 0.72) -> list:
+    """从色板中筛出亮度足够低的颜色，保证小字号文字肉眼清晰可读。"""
+    out = []
+    for hex_color in palette:
+        r, g, b = _hex_to_rgb(hex_color)
+        _h, lightness, _s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+        if lightness <= max_lightness:
+            out.append(hex_color)
+    return out or list(palette)
+
+
+_WORDCLOUD_SMALL_POOL = _dark_enough_pool(WORDCLOUD_PALETTE)
+
+
+def _wc_color_func(word, font_size, position, orientation,
+                   random_state=None, **kwargs):
+    """词云取色：字号越大颜色越深，整体限制在主题低饱和色板内。
+
+    小字号词只用深色系，避免浅色小字看不清。
+    """
+    if random_state is None:
+        random_state = random
+    if font_size > 90:
+        pool = WORDCLOUD_DEEP_POOL
+    elif font_size > 55:
+        pool = WORDCLOUD_MID_POOL
+    else:
+        pool = _WORDCLOUD_SMALL_POOL
+    return random_state.choice(pool)
+
+
+# ---------------------------------------------------------------------------
+# 六维雷达图
+# ---------------------------------------------------------------------------
+def _rgba(hex_color: str, opacity: float) -> str:
+    """HEX -> rgba() 字符串（用于半透明填充叠加）。"""
+    r, g, b = _hex_to_rgb(hex_color)
+    return f"rgba({r},{g},{b},{opacity})"
+
+
+def build_radar(row: dict, ref_means: dict = None) -> go.Figure:
+    """构建六维度能力雷达图。
+
+    ref_means: 可选，{标签: {维度键: 分值}}，用于在雷达图上叠加班级 / 年级均值
+    参考面（半透明填充叠加，图例可单独点击显隐每条参考系列）。
+    """
+    dims = [DIMENSION_LABELS[d] for d in DIMENSION_ORDER]
+    keys = DIMENSION_ORDER
+    vals = [float(row.get(f"score_{k}", 0) or 0) for k in keys]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=vals + [vals[0]],
+        theta=dims + [dims[0]],
+        fill="toself",
+        name="个人能力",
+        line_color=THEME_PRIMARY,
+        fillcolor=RADAR_SELF_FILL,
+    ))
+
+    if ref_means:
+        for i, (label, rm) in enumerate(ref_means.items()):
+            rref = [float(rm.get(k, 0) or 0) for k in keys]
+            color = RADAR_REF_COLORS[i % len(RADAR_REF_COLORS)]
+            # 均值参考由虚线升级为半透明填充叠加，强弱对比更直观；
+            # 图例点击可单独显隐（Plotly 原生交互）
+            fig.add_trace(go.Scatterpolar(
+                r=rref + [rref[0]],
+                theta=dims + [dims[0]],
+                fill="toself",
+                mode="lines",
+                name=label,
+                line=dict(color=color, width=2),
+                fillcolor=_rgba(color, RADAR_REF_FILL_OPACITY),
+            ))
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 100], gridcolor=THEME_GRID),
+            angularaxis=dict(gridcolor=THEME_GRID),
+            bgcolor=THEME_CARD_BG,
+        ),
+        showlegend=bool(ref_means),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.18,
+                    itemclick="toggle", itemdoubleclick="toggleothers"),
+        height=360,
+        margin=dict(l=40, r=40, t=30, b=30),
+        paper_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 成长趋势
+# ---------------------------------------------------------------------------
+def trend_scores(seed_key: str, current_score: float, semesters: int = 6) -> list[float]:
+    """基于当前综合评分确定性回溯历史学期走势（截面快照的演示走势）。
+
+    用 md5 学号派生种子而非内置 hash()：后者每个进程随机化
+    （PYTHONHASHSEED），会导致同一学生每次打开页面趋势都不一样。
+    网页端与 PDF 端共用本函数，保证两处图形一致。
+    """
+    import hashlib
+    seed = int(hashlib.md5(str(seed_key).encode("utf-8")).hexdigest()[:12], 16)
+    rng = random.Random(seed % (10 ** 8))
+    scores = [float(current_score)]
+    for _ in range(semesters - 1):
+        delta = rng.gauss(-2, 4)  # 历史总体略低于当前
+        prev = max(20, min(100, scores[-1] + delta))
+        scores.append(prev)
+    return scores[::-1]  # 时间正序
+
+
+def build_trend(student_id: str, current_score: float, semesters: int = 6) -> go.Figure:
+    """构建成长趋势折线图。
+
+    由于原始数据为截面快照，这里基于当前综合评分用确定性随机游走
+    回溯生成历史学期走势（仅用于演示趋势形态）。
+    """
+    scores = trend_scores(student_id, current_score, semesters)
+
+    labels = [f"第{i}学期" for i in range(1, semesters + 1)]
+    fig = go.Figure()
+    # 面积图：走势下方铺主题色浅填充，视觉重心落在最新学期
+    fig.add_trace(go.Scatter(
+        x=labels, y=scores, mode="lines+markers",
+        line=dict(color=THEME_PRIMARY, width=3),
+        marker=dict(size=8, color=THEME_CARD_BG,
+                    line=dict(color=THEME_PRIMARY, width=2)),
+        fill="tozeroy",
+        fillcolor=TREND_FILL,
+    ))
+
+    # 末端徽章：较上学期 +/-X.X 分
+    if len(scores) >= 2:
+        delta = scores[-1] - scores[-2]
+        badge = f"较上学期 {'+' if delta >= 0 else ''}{delta:.1f} 分"
+        fig.add_annotation(
+            x=labels[-1], y=scores[-1],
+            text=badge, showarrow=True, arrowhead=2, ax=0, ay=-34,
+            bgcolor=THEME_PRIMARY, bordercolor=THEME_PRIMARY,
+            font=dict(color=THEME_CARD_BG, size=12),
+            borderpad=4, opacity=0.95,
+        )
+    # 图下注记：演示数据说明（接入真实学期数据后自动替换）
+    fig.add_annotation(
+        xref="paper", yref="paper", x=0, y=-0.22,
+        text="注：历史走势为演示模拟数据，接入真实学期数据后自动替换。",
+        showarrow=False, font=dict(size=11, color=THEME_TEXT_SUB),
+        xanchor="left",
+    )
+    fig.update_layout(
+        height=360,
+        margin=dict(l=40, r=40, t=30, b=56),
+        yaxis=dict(title="综合评分", range=[0, 100], gridcolor=THEME_GRID),
+        xaxis=dict(title="学期", gridcolor=THEME_GRID),
+        paper_bgcolor=THEME_CARD_BG,
+        plot_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 风险分布
+# ---------------------------------------------------------------------------
+def build_distribution(distribution: dict, chart_type: str = "pie") -> go.Figure:
+    """构建班级风险等级分布图。
+
+    chart_type: 'pie' 饼图 | 'bar' 柱状图。
+    """
+    labels_order = ["正常", "关注", "高危"]
+    labels = [l for l in labels_order if l in distribution] + \
+             [l for l in distribution if l not in labels_order]
+    values = [distribution.get(l, 0) for l in labels]
+    colors = [RISK_COLORS.get(l, CHART_NEUTRAL) for l in labels]
+
+    if chart_type == "bar":
+        fig = go.Figure(go.Bar(
+            x=labels, y=values,
+            marker_color=colors,
+            text=values,
+            textposition="outside",
+        ))
+        fig.update_layout(
+            height=340,
+            margin=dict(l=40, r=40, t=30, b=40),
+            yaxis=dict(title="人数", gridcolor=THEME_GRID),
+            xaxis=dict(gridcolor=THEME_GRID),
+            paper_bgcolor=THEME_CARD_BG,
+            plot_bgcolor=THEME_CARD_BG,
+            font=dict(color=THEME_TEXT),
+        )
+    else:
+        fig = go.Figure(go.Pie(
+            labels=labels, values=values, hole=0.55,
+            marker_colors=colors,
+            textinfo="label+percent",
+            insidetextorientation="horizontal",
+        ))
+        fig.update_layout(
+            height=340,
+            margin=dict(l=40, r=40, t=30, b=30),
+            paper_bgcolor=THEME_CARD_BG,
+            font=dict(color=THEME_TEXT),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.15),
+        )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 二级指标柱状图
+# ---------------------------------------------------------------------------
+def build_sub_bar(sub_scores: dict, dim_label: str, dim_color: str | None = None) -> go.Figure:
+    """构建某维度下二级指标得分柱状图。
+
+    sub_scores: {二级标签: 得分(0~100)}。
+    dim_color: 该维度主题色。传入时所有柱子统一用该纯色（学生端维度页，
+               使页面与所选维度主题色一致）；不传时沿用按得分深浅的橄榄绿色阶。
+    """
+    labels = list(sub_scores.keys())
+    vals = [float(sub_scores[k]) for k in labels]
+
+    if dim_color:
+        # 纯色：与本维度主题色一致
+        marker = dict(color=dim_color, line=dict(width=0))
+    else:
+        marker = dict(
+            color=vals,
+            colorscale=SCORE_COLORSCALE,
+            cmin=0,
+            cmax=100,
+            line=dict(width=0),
+        )
+
+    fig = go.Figure(go.Bar(
+        x=labels,
+        y=vals,
+        marker=marker,
+        text=[f"{v:.1f}" for v in vals],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        height=320,
+        margin=dict(l=40, r=40, t=50, b=40),
+        yaxis=dict(title="得分", range=[0, 100], gridcolor=THEME_GRID),
+        xaxis=dict(gridcolor=THEME_GRID),
+        title=dict(text=f"{dim_label} · 二级指标得分", font=dict(size=15, color=THEME_TEXT)),
+        paper_bgcolor=THEME_CARD_BG,
+        plot_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+        showlegend=False,
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 维度分析树（Treemap）
+# ---------------------------------------------------------------------------
+def build_treemap(sub_scores: dict, dim_label: str, dim_key: str = None,
+                  dim_color: str | None = None) -> go.Figure:
+    """构建维度分析树（Plotly Treemap 矩形树图）。
+
+    sub_scores: {二级标签: 得分(0~100)}；父节点为维度根，叶子面积反映得分。
+    叶子颜色按得分连续色阶着色，避免红绿橙。
+    dim_color: 该维度主题色。传入时色阶改用该维度的同色系（浅=低分，深=高分），
+               深浅语义与色阶条保持一致；不传时沿用统一的橄榄绿色阶。
+    """
+    labels = [dim_label] + list(sub_scores.keys())
+    parents = [""] + [dim_label] * len(sub_scores)
+    values = [sum(sub_scores.values())] + [float(v) for v in sub_scores.values()]
+    leaf_scores = [float(v) for v in sub_scores.values()]
+
+    # 根节点用二级指标平均分着色，保证 marker.colors 全为数值、可统一映射连续色阶
+    root_score = sum(leaf_scores) / len(leaf_scores) if leaf_scores else 0.0
+    node_colors = [root_score] + leaf_scores
+
+    colorscale = build_hue_colorscale(dim_color) if dim_color else SCORE_COLORSCALE
+
+    fig = go.Figure(go.Treemap(
+        labels=labels,
+        parents=parents,
+        values=values,
+        branchvalues="total",
+        marker=dict(
+            colors=node_colors,
+            colorscale=colorscale,
+            cmin=0,
+            cmax=100,
+            showscale=True,
+            colorbar=dict(title="得分", ticksuffix="分"),
+        ),
+        textinfo="label+value",
+        hovertemplate="%{label}<br>得分 %{value:.1f}<extra></extra>",
+        textfont=dict(color=THEME_CARD_BG, size=13),
+    ))
+    fig.update_layout(
+        height=380,
+        margin=dict(l=10, r=10, t=40, b=10),
+        paper_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 词云（自由散布式：无 mask、无轮廓、白底融进卡片）
+# ---------------------------------------------------------------------------
+def build_wordcloud(tags: list, width: int = 600, height: int = 800):
+    """构建学生画像词云图（Matplotlib Figure）。
+
+    tags: [(标签, 权重), ...]，字号与权重正相关规则不变。
+    自由分布样式：不使用 mask 与轮廓线，词可横可斜，白底融入卡片。
+    返回 matplotlib.figure.Figure；若 wordcloud 不可用或无中文字体，回退为水平条形词频图。
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    font_path = get_cjk_font_path()
+
+    try:
+        from wordcloud import WordCloud
+
+        freq = {t: max(1.0, float(w)) for t, w in tags}
+        wc = WordCloud(
+            width=width,
+            height=height,
+            background_color=THEME_CARD_BG,
+            prefer_horizontal=0.65,   # 允许约 1/3 斜向词，贴近自然词云效果
+            relative_scaling=0.5,
+            margin=8,
+            max_words=80,
+            min_font_size=12,
+            max_font_size=160,
+            color_func=_wc_color_func,
+            font_path=font_path,
+            random_state=42,
+        ).generate_from_frequencies(freq)
+
+        fig = plt.figure(figsize=(width / 100, height / 100), dpi=100, frameon=False)
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.imshow(wc, interpolation="bilinear")
+        ax.axis("off")
+        return fig
+    except Exception:
+        # 回退：水平条形图
+        fig = plt.figure(figsize=(7, 4.5), dpi=100)
+        ax = fig.add_subplot(111)
+        if tags:
+            tags_sorted = sorted(tags, key=lambda x: x[1], reverse=True)[:15]
+            words = [t for t, _ in tags_sorted][::-1]
+            weights = [w for _, w in tags_sorted][::-1]
+            colors_bar = [SCORE_COLORSCALE[int(min(1.0, w / 100) * 2)][1] for w in weights]
+            ax.barh(words, weights, color=colors_bar)
+            ax.set_xlabel("权重", color=THEME_TEXT)
+            ax.tick_params(colors=THEME_TEXT)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+        ax.set_title("学生特征标签", fontsize=13, color=THEME_TEXT)
+        plt.tight_layout()
+        return fig
+
+
+# ---------------------------------------------------------------------------
+# 定 K 过程曲线（肘部法则 SSE + 轮廓系数 + 合成得分，作品书 3.4.1）
+# ---------------------------------------------------------------------------
+def build_k_selection_curve(details: dict, grade: int | None = None) -> go.Figure | None:
+    """把自动定 K 过程画成双轴曲线图。
+
+    details: choose_best_k 返回的 {tested_k, inertias, silhouettes, scores, best_k}。
+    X = 候选 K（2~8）；左轴 SSE（越小越好），右轴轮廓系数（越大越好）；
+    合成得分（肘部 0.4 + 轮廓 0.6 加权）单独一条高亮曲线，并标注选中的最优 K。
+    """
+    tested = list(details.get("tested_k") or [])
+    if not tested:
+        return None
+    inertias = list(details.get("inertias") or [])
+    silhouettes = list(details.get("silhouettes") or [])
+    scores = [s for s in (details.get("scores") or [])]
+    best_k = details.get("best_k")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=tested, y=inertias, mode="lines+markers", name="SSE（左轴，越小越好）",
+        line=dict(color=CHART_SECONDARY, width=2), marker=dict(size=7),
+    ))
+    fig.add_trace(go.Scatter(
+        x=tested, y=silhouettes, mode="lines+markers", name="轮廓系数（右轴，越大越好）",
+        line=dict(color=CHART_ACCENT, width=2, dash="dot"), marker=dict(size=7),
+        yaxis="y2",
+    ))
+    if any(s is not None for s in scores):
+        fig.add_trace(go.Scatter(
+            x=tested, y=scores, mode="lines+markers",
+            name="合成得分（肘部0.4+轮廓0.6）",
+            line=dict(color=THEME_PRIMARY, width=3), marker=dict(size=8),
+            yaxis="y2",
+        ))
+    # 高亮最优 K 点并标注
+    if best_k in tested:
+        bi = tested.index(best_k)
+        ann_y = None
+        if bi < len(scores) and scores[bi] is not None:
+            ann_y = scores[bi]
+        elif bi < len(silhouettes):
+            ann_y = silhouettes[bi]
+        if ann_y is not None:
+            grade_txt = f"{grade} 级" if grade else "本年级"
+            fig.add_annotation(
+                x=best_k, y=ann_y, yref="y2",
+                text=f"{grade_txt}最优 K={best_k}<br>（肘部 0.4 + 轮廓 0.6 加权自动确定）",
+                showarrow=True, arrowhead=2, ax=0, ay=-44,
+                bgcolor=THEME_PRIMARY, bordercolor=THEME_PRIMARY,
+                font=dict(color=THEME_CARD_BG, size=12), borderpad=4,
+            )
+            fig.add_trace(go.Scatter(
+                x=[best_k], y=[ann_y], mode="markers", yaxis="y2",
+                marker=dict(size=15, color=THEME_PRIMARY, symbol="circle-open",
+                            line=dict(width=3, color=THEME_PRIMARY_DARK)),
+                showlegend=False, hoverinfo="skip",
+            ))
+    fig.update_layout(
+        height=340,
+        margin=dict(l=50, r=50, t=30, b=40),
+        xaxis=dict(title="候选 K", dtick=1, gridcolor=THEME_GRID),
+        yaxis=dict(title="SSE（肘部法则）", gridcolor=THEME_GRID),
+        yaxis2=dict(title="轮廓系数 / 合成得分", overlaying="y", side="right"),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.28),
+        paper_bgcolor=THEME_CARD_BG,
+        plot_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 第二课堂成绩单 donut（五段 = 五维主题色，中心总分 / 600）
+# ---------------------------------------------------------------------------
+def build_second_classroom_donut(parts: dict, caps: dict, part_colors: dict,
+                                 total: float, total_max: float) -> go.Figure:
+    """构建第二课堂成绩单环形图。
+
+    parts: {部分名: 得分}；caps: {部分名: 上限}；
+    part_colors: {部分名: 主题色}（五段对应德/智/体/美/劳五个维度主题色）。
+    中心显示「总分 / 满分」。
+    """
+    names = list(parts.keys())
+    vals = [float(parts[n]) for n in names]
+    colors = [part_colors.get(n, CHART_NEUTRAL) for n in names]
+    hover = [
+        f"{n}<br>{float(parts[n]):.0f} / {float(caps.get(n, 0)):.0f} 分<extra></extra>"
+        for n in names
+    ]
+    fig = go.Figure(go.Pie(
+        labels=names, values=vals, hole=0.62,
+        marker_colors=colors,
+        textinfo="label+value",
+        hovertemplate=hover,
+        insidetextorientation="horizontal",
+        sort=False,
+    ))
+    fig.update_layout(
+        height=320,
+        margin=dict(l=20, r=20, t=20, b=20),
+        paper_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+        legend=dict(orientation="h", yanchor="bottom", y=-0.18),
+        annotations=[dict(
+            text=f"<b>{total:.0f}</b><br><span style='font-size:12px'>/ {total_max:.0f} 分</span>",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=26, color=THEME_PRIMARY_DARK),
+        )],
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 维度分析树（节点连线层级树，纯 Plotly 自绘：圆角节点 + 肘形连线）
+# ---------------------------------------------------------------------------
+def _scale_hex(colorscale: list, t: float) -> str:
+    """在 [[pos, hex], ...] 连续色阶上取 t∈[0,1] 处的颜色。"""
+    t = max(0.0, min(1.0, float(t)))
+    pts = sorted(colorscale, key=lambda p: p[0])
+    if t <= pts[0][0]:
+        return pts[0][1]
+    if t >= pts[-1][0]:
+        return pts[-1][1]
+    for i in range(len(pts) - 1):
+        p0, c0 = pts[i]
+        p1, c1 = pts[i + 1]
+        if p0 <= t <= p1:
+            r0, g0, b0 = _hex_to_rgb(c0)
+            r1, g1, b1 = _hex_to_rgb(c1)
+            k = 0.0 if p1 - p0 < 1e-9 else (t - p0) / (p1 - p0)
+            return _rgb_to_hex((r0 + (r1 - r0) * k,
+                                g0 + (g1 - g0) * k,
+                                b0 + (b1 - b0) * k))
+    return pts[-1][1]
+
+
+def _text_px(text: str, font_size: float = 12.0) -> float:
+    """估算文本像素宽度（中文按全宽、ASCII 按半宽多一点），用于节点宽度。"""
+    w = 0.0
+    for ch in str(text):
+        w += font_size + 1.5 if ord(ch) > 0x2E7F else font_size * 0.58
+    return w
+
+
+def _rounded_rect_path(x0: float, y0: float, x1: float, y1: float, r: float) -> str:
+    """圆角矩形 SVG path（plotly shape type='path'，数据坐标）。"""
+    r = min(r, (x1 - x0) / 2.0, (y1 - y0) / 2.0)
+    return (
+        f"M {x0 + r},{y0} L {x1 - r},{y0} Q {x1},{y0} {x1},{y0 + r} "
+        f"L {x1},{y1 - r} Q {x1},{y1} {x1 - r},{y1} L {x0 + r},{y1} "
+        f"Q {x0},{y1} {x0},{y1 - r} L {x0},{y0 + r} Q {x0},{y0} {x0 + r},{y0} Z"
+    )
+
+
+def build_dimension_tree(root: dict, children: list, dim_color: str,
+                         orientation: str = "h") -> go.Figure:
+    """构建「维度分析树」节点连线层级图（3 层：根 -> 二级指标 -> 明细叶子）。
+
+    root: {"title": 维度名, "line2": "55.0 分 · 合格", "hover": ...}
+    children: [{
+        "title": 二级指标名, "line2": "76.3 分 · 良好", "score": 76.3,
+        "leaf": "GPA 3.42｜班级均值 3.28｜权重 30%"（None 表示该分支已折叠）,
+        "hover": 节点悬停文本, "leaf_hover": 叶子悬停文本,
+    }, ...]
+    dim_color: 维度主题色（根节点深底白字；二级节点按得分取同色系色阶，深=高）。
+    orientation: "h" 横向（根在左，默认）| "v" 纵向（根在上）。
+
+    布局算法（tidy）：叶子等距排列，父节点位于子节点中点；连线四点肘形。
+    """
+    scale = build_hue_colorscale(dim_color)
+    FONT = 12          # 正文字号（>=11）
+    FONT_SMALL = 11
+    PAD_X = 14         # 节点水平内边距
+    NODE_H2 = 46       # 双行节点高（根 / 二级）
+    NODE_H1 = 30       # 单行叶子高
+    VGAP = 16          # 叶子行间距
+    HGAP = 64          # 层级间距
+
+    def _node_w(lines, font=FONT):
+        return max(_text_px(t, font) for t in lines) + 2 * PAD_X
+
+    # ---- 计算节点宽度 ----
+    root_lines = [root["title"]] + ([root["line2"]] if root.get("line2") else [])
+    root_w = _node_w(root_lines)
+    child_ws, leaf_ws = [], []
+    for ch in children:
+        c_lines = [ch["title"]] + ([ch["line2"]] if ch.get("line2") else [])
+        child_ws.append(_node_w(c_lines))
+        leaf_ws.append(_node_w([ch["leaf"]], FONT_SMALL) if ch.get("leaf") else 0)
+    max_child_w = max(child_ws) if child_ws else 0
+    max_leaf_w = max(leaf_ws) if leaf_ws else 0
+
+    # ---- tidy 布局：叶子等距（按节点实际厚度变距），父节点取子节点中点 ----
+    # 展开向（span）节点厚度：横向=节点高度，纵向=节点宽度（叶子优先）
+    child_pos = []      # 每个二级节点的 (厚度, 宽, has_leaf)
+    for i, ch in enumerate(children):
+        has_leaf = bool(ch.get("leaf"))
+        if orientation == "v":
+            thick = (leaf_ws[i] if has_leaf else child_ws[i])
+        else:
+            thick = (NODE_H1 if has_leaf else NODE_H2)
+        child_pos.append((thick, child_ws[i], has_leaf))
+
+    PAD_S = 24.0
+    centers: list[float] = []   # 每个 slot 的展开向中心坐标（变距：相邻不重叠）
+    acc = PAD_S
+    for thick, _w, _hl in child_pos:
+        acc += thick / 2.0
+        centers.append(acc)
+        acc += thick / 2.0 + VGAP
+    span_max = (centers[-1] + child_pos[-1][0] / 2.0 + PAD_S) if centers else 120.0
+    root_sc = (centers[0] + centers[-1]) / 2.0 if centers else 60.0
+
+    # ---- 抽象坐标：depth（层级向）与 slot（展开向），最后按方向映射到 (x, y) ----
+    # depth 坐标（横向时向右；纵向时向下）
+    d0, d1 = 20.0, 20.0 + root_w + HGAP
+    d2 = d1 + max_child_w + HGAP
+    depth_max = d2 + max_leaf_w + 30.0
+
+    def _sc(slot_idx):
+        """slot 序号 -> 展开向中心坐标。"""
+        return centers[slot_idx]
+
+    def _map(d, s):
+        """(depth, span) -> (x, y)；纵向时交换并翻转 y（根在上）。"""
+        if orientation == "v":
+            return s, d
+        return d, s
+
+    shapes, annotations = [], []
+    hx, hy, htext = [], [], []   # 悬停热点
+    edge_x, edge_y = [], []
+
+    def _add_node(d_left, sc, w, h, lines, fill, font_color, hover,
+                  fonts=(FONT, FONT_SMALL)):
+        # 节点矩形在 depth 向占 w，在 span 向占 h（纵向时反过来）
+        if orientation == "v":
+            x0r, y0r = _map(d_left, sc - w / 2)
+            x1r, y1r = _map(d_left + h, sc + w / 2)
+        else:
+            x0r, y0r = _map(d_left, sc - h / 2)
+            x1r, y1r = _map(d_left + w, sc + h / 2)
+        x0r, x1r = min(x0r, x1r), max(x0r, x1r)
+        y0r, y1r = min(y0r, y1r), max(y0r, y1r)
+        shapes.append(dict(
+            type="path",
+            path=_rounded_rect_path(x0r, y0r, x1r, y1r, 9),
+            fillcolor=fill, line=dict(color=THEME_CARD_BORDER, width=1),
+        ))
+        cx, cy = (x0r + x1r) / 2.0, (y0r + y1r) / 2.0
+        if len(lines) == 1:
+            annotations.append(dict(
+                x=cx, y=cy, text=lines[0], showarrow=False,
+                font=dict(size=fonts[1], color=font_color),
+                xanchor="center", yanchor="middle",
+            ))
+        else:
+            annotations.append(dict(
+                x=cx, y=cy + 8, text=f"<b>{lines[0]}</b>", showarrow=False,
+                font=dict(size=fonts[0], color=font_color),
+                xanchor="center", yanchor="middle",
+            ))
+            annotations.append(dict(
+                x=cx, y=cy - 10, text=lines[1], showarrow=False,
+                font=dict(size=fonts[1], color=font_color),
+                xanchor="center", yanchor="middle",
+            ))
+        if hover:
+            # 三个隐形热点覆盖节点大部分区域，悬停显示完整数值
+            for f in (0.25, 0.5, 0.75):
+                if orientation == "v":
+                    px, py = _map(d_left + h / 2.0, sc - w / 2.0 + w * f)
+                else:
+                    px, py = _map(d_left + w * f, sc)
+                hx.append(px)
+                hy.append(py)
+                htext.append(hover)
+
+    def _add_elbow(da, sa, db, sb):
+        """四点肘形连线（depth 向先走一半，再跨 span，再走另一半）。"""
+        dm = (da + db) / 2.0
+        for px, py in [_map(da, sa), _map(dm, sa), _map(dm, sb), _map(db, sb)]:
+            edge_x.append(px)
+            edge_y.append(py)
+        edge_x.append(None)
+        edge_y.append(None)
+
+    # ---- 根节点（父节点位于子节点中点）----
+    _add_node(d0, root_sc, root_w, NODE_H2, root_lines,
+              _scale_hex(scale, 1.0), THEME_CARD_BG, root.get("hover"))
+
+    # ---- 二级节点 + 叶子 ----
+    for slot, ((_thick, cw, has_leaf), ch) in enumerate(zip(child_pos, children)):
+        sc = _sc(slot)
+        score = ch.get("score")
+        t = 0.0 if score is None else float(score) / 100.0
+        fill = _scale_hex(scale, t)
+        font_color = THEME_CARD_BG if (score is not None and float(score) >= 55) else THEME_TEXT
+        c_lines = [ch["title"]] + ([ch["line2"]] if ch.get("line2") else [])
+        _add_node(d1, sc, cw, NODE_H2, c_lines, fill, font_color, ch.get("hover"))
+        _add_elbow(d0 + root_w, root_sc, d1, sc)
+        if has_leaf:
+            lw = _node_w([ch["leaf"]], FONT_SMALL)
+            _add_node(d2, sc, lw, NODE_H1,
+                      [ch["leaf"]], THEME_PRIMARY_LIGHT, THEME_TEXT,
+                      ch.get("leaf_hover") or ch.get("hover"),
+                      fonts=(FONT_SMALL, FONT_SMALL))
+            _add_elbow(d1 + cw, sc, d2, sc)
+
+    fig = go.Figure()
+    # 连线（在最底层）
+    fig.add_trace(go.Scatter(
+        x=edge_x, y=edge_y, mode="lines",
+        line=dict(color=THEME_CARD_BORDER, width=2),
+        hoverinfo="skip", showlegend=False,
+    ))
+    # 悬停热点
+    fig.add_trace(go.Scatter(
+        x=hx, y=hy, mode="markers",
+        marker=dict(size=26, color=THEME_PRIMARY, opacity=0),
+        text=htext, hovertemplate="%{text}<extra></extra>",
+        showlegend=False,
+    ))
+    for s in shapes:
+        fig.add_shape(s)
+    for ann in annotations:
+        fig.add_annotation(ann)
+
+    if orientation == "v":
+        fig.update_xaxes(range=[-20, span_max + 20], visible=False)
+        fig.update_yaxes(range=[depth_max + 20, -20], visible=False,
+                         scaleanchor="x", scaleratio=1)
+        fig.update_layout(
+            height=max(430, depth_max + 60),
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
+    else:
+        fig.update_xaxes(range=[-10, depth_max + 10], visible=False)
+        fig.update_yaxes(range=[span_max + 10, -10], visible=False,
+                         scaleanchor="x", scaleratio=1)
+        fig.update_layout(
+            height=max(300, span_max + 40),
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
+    fig.update_layout(
+        paper_bgcolor=THEME_CARD_BG,
+        plot_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+        dragmode="pan",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 同类型对比条（本人 vs 同成长类型均值 vs 年级均值）
+# ---------------------------------------------------------------------------
+def build_compare_bar(self_label: str, self_val: float,
+                      ref_pairs: list, dim_color: str,
+                      title: str = "") -> go.Figure:
+    """横向对比条形图：本人（维度主题色）+ 参考系列（辅助色）。
+
+    ref_pairs: [(标签, 数值), ...]，如 [("同成长类型均值", 70.2), ("年级均值", 68.5)]。
+    """
+    labels = [self_label] + [p[0] for p in ref_pairs]
+    vals = [float(self_val)] + [float(p[1]) for p in ref_pairs]
+    ref_colors = [CHART_ACCENT, CHART_NEUTRAL, CHART_SECONDARY]
+    colors = [dim_color] + [ref_colors[i % len(ref_colors)] for i in range(len(ref_pairs))]
+    fig = go.Figure(go.Bar(
+        y=labels, x=vals, orientation="h",
+        marker_color=colors,
+        text=[f"{v:.1f}" for v in vals],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        height=200,
+        margin=dict(l=10, r=40, t=30 if title else 10, b=10),
+        xaxis=dict(range=[0, 100], gridcolor=THEME_GRID, title="得分"),
+        yaxis=dict(autorange="reversed"),
+        title=dict(text=title, font=dict(size=14, color=THEME_TEXT)) if title else None,
+        paper_bgcolor=THEME_CARD_BG,
+        plot_bgcolor=THEME_CARD_BG,
+        font=dict(color=THEME_TEXT),
+        showlegend=False,
+    )
+    return fig

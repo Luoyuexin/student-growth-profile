@@ -1,0 +1,26 @@
+# 学生成长画像分析系统 - 依赖清单
+# 目标运行版本：Python 3.14（锁定 3.14，见需求决策 Q4）
+# 已在 Python 3.14 + pandas 3.x / scikit-learn 1.9 / streamlit 1.61 下验证
+
+# Web 框架
+streamlit>=1.30.0
+
+# 数据分析
+pandas>=1.5.0
+numpy>=1.23.0
+scikit-learn>=1.2.0
+
+# AI 大模型调用（云端 OpenAI 兼容接口）
+# 说明：直接以 HTTP 方式调用 /chat/completions，不依赖 openai SDK，
+#       以避免 openai 与 httpx 版本冲突（如 openai 1.30 + httpx 0.28 会报 proxies 错误）。
+requests>=2.28.0
+pyyaml>=6.0
+
+# 可视化
+plotly>=5.15.0
+matplotlib>=3.7.0       # PDF 报告图表渲染（Agg，无浏览器依赖）
+wordcloud>=1.9.0        # 学生画像词云（无中文字体时自动降级为条形图）
+Pillow>=9.0.0           # 词云 mask / 图像处理
+
+# PDF 生成
+reportlab>=3.6.0

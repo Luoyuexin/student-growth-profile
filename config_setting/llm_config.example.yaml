@@ -1,0 +1,44 @@
+# 云端大模型配置（OpenAI 兼容接口）
+#
+# 使用步骤：
+#   1. 复制本文件，重命名为 llm_config.yaml（同目录）。
+#   2. 填入你的 base_url / api_key / model。
+#   3. 将 enabled 改为 true。
+#
+# 注意：llm_config.yaml 已被 .gitignore 忽略，不会进入版本库，请妥善保管密钥。
+# 隐私：系统会强制剥离姓名 / 学号等 PII，仅向云端发送脱敏后的维度分值与聚合统计。
+
+enabled: false
+
+# 服务商兼容 OpenAI 的接口地址，例如：
+#   火山方舟:  https://ark.cn-beijing.volces.com/api/v3   （推荐）
+#   DeepSeek:  https://api.deepseek.com/v1
+#   通义千问:  https://dashscope.aliyuncs.com/compatible-mode/v1
+#   智谱 GLM:  https://open.bigmodel.cn/api/paas/v4
+#   OpenAI:    https://api.openai.com/v1
+base_url: "https://ark.cn-beijing.volces.com/api/v3"
+
+# 你的 API Key（仅本地存储，不入库、不进 git）
+api_key: "sk-xxxxxxxxxxxxxxxx"
+
+# 实际可用的模型名（方舟模型广场中的 Model ID），例如：
+#   火山方舟:  glm-5-3-flash-260828 / glm-5.2 / doubao-seed-2-0-lite-260428
+#   其他:      gpt-4o-mini / deepseek-chat / qwen-plus / glm-4
+model: "glm-5-3-flash-260828"
+
+# 生成温度，0~1。GLM-5.3 / GLM-5.3-Flash 建议使用默认值 1.0
+temperature: 1.0
+
+# 单次回复最大 token 数（推理型模型的思考过程也占额度，建议留足余量）
+max_tokens: 3000
+
+# 单次请求超时（秒）
+timeout: 90
+
+# 深度思考策略：auto / on / off
+#   auto —— 按模型自动判断（推荐）
+#   off  —— 关闭（⚠️ GLM-5.3 / GLM-5.3-Flash 不支持关闭，传 disabled 会被服务端拒绝）
+thinking: auto
+
+# 思考深度：low / high / max（仅 GLM-5.x 支持，留空则不发送该字段）
+reasoning_effort: low
