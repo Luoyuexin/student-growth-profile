@@ -10,6 +10,8 @@ import datetime
 import json
 from typing import Dict, List, Optional
 
+import streamlit as st
+
 from local_database import db_init
 from config_setting import (
     ROLE_STUDENT,
@@ -56,6 +58,11 @@ STUDENT_COLUMNS = [
     "handbook_hits", "handbook_reminders",
     "last_updated",
 ]
+
+
+def _hash_obj(obj) -> int:
+    """把 list/dict 等结构稳定序列化后取哈希，供 @st.cache_data 使用。"""
+    return hash(json.dumps(obj, sort_keys=True, default=str))
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +442,7 @@ def get_raw_student(student_id: str) -> Optional[Dict]:
         conn.close()
 
 
+@st.cache_data(ttl=300, show_spinner=False, hash_funcs={list: _hash_obj})
 def get_records_for_analysis(class_names: List[str]) -> List[Dict]:
     """获取管辖班级学生的分析用记录（含年级 / 专业 / 六维得分 / 风险等级）。
 

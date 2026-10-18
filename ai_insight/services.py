@@ -163,5 +163,12 @@ def chat_answer(question: str, safe_context: Dict[str, Any]) -> Tuple[str, bool]
     if text is None:
         return "（AI 对话暂不可用，请检查 config_setting/llm_config.yaml 是否已正确配置云端 API）", False
     validated = client.validate_cited_answer(text, facts)
-    clean = validated.get("text", "").strip() or "（模型回复未通过证据校验，请换一种问法或查看客观数据卡片。）"
+    if not validated.get("text", "").strip():
+        # 校验后正文为空：明确回话，不要返回空白气泡
+        # （此前算出的 clean 变量没被使用，导致助手消息渲染成一片空白）
+        return (
+            "这次没能给出可溯源的回答（回复里没有可用的事实卡片引用）。"
+            "可以换个更具体的问法，例如「本班哪个维度最弱」「高风险学生有多少人」。",
+            True,
+        )
     return client.append_evidence_footer(validated, facts), True

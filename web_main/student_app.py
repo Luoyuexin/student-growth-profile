@@ -36,6 +36,7 @@ from config_setting import (
     NEUTRAL_BG, NEUTRAL_BORDER,
     HANDBOOK_RULES,
     SPINNER_AI,
+    build_theme_css,
 )
 from ai_insight import services as ai, llm_client
 
@@ -50,60 +51,8 @@ ALL_TABS = [TAB_OVERVIEW] + DIM_TABS + [TAB_AI]
 # 样式辅助
 # ---------------------------------------------------------------------------
 def _inject_theme_css() -> None:
-    """注入全局 CSS：灰绿商务风主题。"""
-    st.markdown(f"""
-    <style>
-    .stApp {{
-        background-color: {THEME_BG} !important;
-    }}
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 6px;
-        border-bottom: 1px solid {THEME_CARD_BORDER};
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: {THEME_CARD_BG};
-        border: 1px solid {THEME_CARD_BORDER};
-        border-radius: 8px 8px 0 0;
-        color: {THEME_TEXT_SUB};
-        padding: 10px 18px;
-        font-weight: 500;
-    }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {THEME_PRIMARY_LIGHT};
-        color: {THEME_TEXT};
-        border-bottom: 2px solid {THEME_PRIMARY};
-    }}
-    .stButton>button {{
-        border: 1px solid {THEME_PRIMARY} !important;
-        color: {THEME_PRIMARY_DARK} !important;
-        background-color: {THEME_CARD_BG} !important;
-        border-radius: 8px !important;
-        font-weight: 500;
-    }}
-    .stButton>button:hover {{
-        background-color: {THEME_PRIMARY_LIGHT} !important;
-        color: {THEME_TEXT} !important;
-    }}
-    .stDownloadButton>button {{
-        border: 1px solid {THEME_PRIMARY} !important;
-        color: {THEME_CARD_BG} !important;
-        background-color: {THEME_PRIMARY} !important;
-        border-radius: 8px !important;
-        font-weight: 500;
-    }}
-    .stDownloadButton>button:hover {{
-        background-color: {THEME_PRIMARY_DARK} !important;
-        border-color: {THEME_PRIMARY_DARK} !important;
-    }}
-    .stExpander {{
-        border: 1px solid {THEME_CARD_BORDER};
-        border-radius: 12px;
-        background-color: {THEME_CARD_BG};
-    }}
-    div[data-testid="stMetricValue"] {{ color: {THEME_TEXT} !important; }}
-    div[data-testid="stMetricLabel"] {{ color: {THEME_TEXT_SUB} !important; }}
-    </style>
-    """, unsafe_allow_html=True)
+    """注入全局 CSS：拿破仑黄暖金主题（样式统一由 config_setting 提供）。"""
+    st.markdown(build_theme_css(), unsafe_allow_html=True)
 
 
 def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_generator.DeltaGenerator:
@@ -164,7 +113,10 @@ def _status_pill(label: str, level: str) -> str:
     )
 
 
-_CITATION_TAG_RE = re.compile(r"\[(F\d{2,3})\]")
+# 引用标签：兼容 [F01] 与 [F01, F10]（模型常把多条证据合并进一个方括号）
+_CITATION_TAG_RE = re.compile(
+    r"[\[【]((?:F\d{2,3})(?:\s*[,，、;；/]\s*F\d{2,3})*)[\]】]"
+)
 
 
 def _render_ai_text(txt: str) -> None:
@@ -185,6 +137,20 @@ def _ai_status_banner() -> None:
             "🤖 AI 功能未启用：请在 `config_setting/llm_config.yaml` 中填入云端 API Key "
             "后即可使用（数据经脱敏网关处理后发送）。"
         )
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _wordcloud_png(student_id: str, tags_tuple: tuple, facecolor: str) -> str:
+    """按学号缓存词云 PNG 的 base64 字符串，同一学生第二次进入直接复用。"""
+    fig = chart_builder.build_wordcloud(list(tags_tuple))
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, facecolor=facecolor)
+    try:
+        from matplotlib import pyplot as _plt
+        _plt.close(fig)
+    except Exception:
+        pass
+    return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 def _build_safe_context(student: dict) -> dict:
@@ -648,16 +614,11 @@ def _render_overview(student: dict) -> None:
         with card:
             if tags:
                 # 半身人形剪影词云：mask 轮廓内密集填词，外沿细轮廓线勾勒
-                fig = chart_builder.build_wordcloud(tags)
-                buf = io.BytesIO()
-                fig.savefig(buf, format="png", dpi=100, bbox_inches="tight",
-                            facecolor=THEME_CARD_BG)
-                try:
-                    from matplotlib import pyplot as _plt
-                    _plt.close(fig)
-                except Exception:
-                    pass
-                img64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                # 按学号 + 标签内容缓存 PNG，避免每次切换页签都重新渲染 matplotlib
+                tags_tuple = tuple(tuple(t) for t in tags)
+                img64 = _wordcloud_png(
+                    str(student.get("student_id") or "x"), tags_tuple, THEME_CARD_BG
+                )
                 st.markdown(
                     f'<div style="display:flex;justify-content:center;'
                     f'background:{THEME_CARD_BG};">'
@@ -1141,14 +1102,18 @@ def _render_ai(student: dict) -> None:
 # 入口
 # ---------------------------------------------------------------------------
 def render_student_page(student: dict) -> None:
-    """渲染学生端个人成长画像（顶栏切换）。"""
+    """渲染学生端个人成长画像（顶部页签切换）。"""
     _inject_theme_css()
 
-    tab_selected = st.tabs(ALL_TABS)
-    with tab_selected[0]:
+    # 顶部页签导航：综合总览 + 六个维度 + AI 助手（恢复 tabs 形态）
+    tabs = st.tabs(ALL_TABS)
+
+    with tabs[0]:
         _render_overview(student)
-    for i, d in enumerate(DIMENSION_ORDER):
-        with tab_selected[i + 1]:
-            _render_dimension(student, d)
-    with tab_selected[len(ALL_TABS) - 1]:
+
+    for i, dim in enumerate(DIMENSION_ORDER):
+        with tabs[i + 1]:
+            _render_dimension(student, dim)
+
+    with tabs[len(ALL_TABS) - 1]:
         _render_ai(student)

@@ -17,6 +17,7 @@ import os
 import random
 
 import plotly.graph_objects as go
+import streamlit as st
 
 from config_setting import (
     DIMENSION_ORDER, DIMENSION_LABELS, DIMENSION_COLORS,
@@ -30,6 +31,12 @@ from config_setting import (
     RADAR_SELF_FILL, RADAR_REF_COLORS, RADAR_REF_FILL_OPACITY,
     TREND_FILL,
 )
+
+
+def _hash_obj(obj) -> int:
+    """把 list/dict 等结构稳定序列化后取哈希，供 @st.cache_data 使用。"""
+    import json
+    return hash(json.dumps(obj, sort_keys=True, default=str))
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +120,9 @@ def _dark_enough_pool(palette: list, max_lightness: float = 0.72) -> list:
 
 
 _WORDCLOUD_SMALL_POOL = _dark_enough_pool(WORDCLOUD_PALETTE)
+
+# 词云布词随机种子序列：首个使可见词 ≥40 的种子被采用（确定性复现）
+_WORDCLOUD_SEEDS = (42, 7, 13, 21, 33, 99, 5, 77)
 
 
 def _wc_color_func(word, font_size, position, orientation,
@@ -435,8 +445,9 @@ def _bust_mask(width: int = 600, height: int = 620):
                     cx + neck_half, int(height * 0.40)], fill=0)
 
     # 肩部 + 上胸：椭圆帽（圆角肩线）下接直边矩形，底部在 62% 高度平切
+    # 肩宽取 0.44：剪影仍为自然半身比例，同时保证轮廓内有足够布词面积
     sh_cy = int(height * 0.42)
-    sh_rx = int(width * 0.40)
+    sh_rx = int(width * 0.44)
     sh_ry = int(height * 0.145)
     draw.ellipse([cx - sh_rx, sh_cy - sh_ry, cx + sh_rx, sh_cy + sh_ry], fill=0)
     cut_y = int(height * 0.62)
@@ -445,13 +456,18 @@ def _bust_mask(width: int = 600, height: int = 620):
     return np.array(img)
 
 
-def build_wordcloud(tags: list, width: int = 600, height: int = 620):
+@st.cache_data(ttl=300, show_spinner=False, hash_funcs={list: _hash_obj})
+def build_wordcloud(tags: list, width: int = 660, height: int = 680):
     """构建学生画像词云图（Matplotlib Figure）。
 
     tags: [(标签, 权重), ...]，字号与权重正相关规则不变。
     使用半身人形剪影 mask（头部 + 肩部 + 上胸），人形外沿以主题边框色细线勾勒；
     词密集填充轮廓内部，配色沿用主题低饱和色板（小字只用深色系保证可读）。
     返回 matplotlib.figure.Figure；若 wordcloud 不可用或无中文字体，回退为水平条形词频图。
+
+    布词说明：wordcloud 库在某个词放不下时会中断放置后续全部词（级联中断），
+    因此按固定种子序列逐个尝试，取首个可见词 ≥40 的结果（均无则取最多者）。
+    种子序列固定，同一学生的词云跨进程可复现。
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -463,23 +479,31 @@ def build_wordcloud(tags: list, width: int = 600, height: int = 620):
         from wordcloud import WordCloud
 
         freq = {t: max(1.0, float(w)) for t, w in tags}
-        wc = WordCloud(
-            width=width,
-            height=height,
-            mask=_bust_mask(width, height),
-            contour_width=1,
-            contour_color=THEME_CARD_BORDER,   # 主题边框色细轮廓线，勾勒人形外沿
-            background_color=THEME_CARD_BG,
-            prefer_horizontal=0.85,
-            relative_scaling=0.4,
-            margin=1,
-            max_words=200,
-            min_font_size=9,
-            max_font_size=160,
-            color_func=_wc_color_func,
-            font_path=font_path,
-            random_state=42,
-        ).generate_from_frequencies(freq)
+        mask = _bust_mask(width, height)
+        wc = None
+        for seed in _WORDCLOUD_SEEDS:
+            cand = WordCloud(
+                width=width,
+                height=height,
+                mask=mask,
+                contour_width=1,
+                contour_color=THEME_CARD_BORDER,   # 主题边框色细轮廓线，勾勒人形外沿
+                background_color=THEME_CARD_BG,
+                prefer_horizontal=0.85,
+                relative_scaling=0.25,
+                margin=1,
+                max_words=220,
+                min_font_size=14,
+                max_font_size=80,
+                color_func=_wc_color_func,
+                font_path=font_path,
+                random_state=seed,
+            ).generate_from_frequencies(freq)
+            if wc is None or len(cand.layout_) > len(wc.layout_):
+                wc = cand
+            if len(cand.layout_) >= 40:
+                wc = cand
+                break
 
         fig = plt.figure(figsize=(width / 100, height / 100), dpi=100, frameon=False)
         ax = fig.add_axes([0, 0, 1, 1])
@@ -650,6 +674,27 @@ def _text_px(text: str, font_size: float = 12.0) -> float:
     return w
 
 
+def _shorten_mean(mean_seg: str, own_seg: str) -> str:
+    """纵向树叶子去重：均值段与本人值段重复的指标名只保留一次。
+
+    如 own="量表 81 分"、mean="班级均值 量表 66 分" -> "班级均值 66 分"。
+    均值段前缀（"班级均值" / "年级均值" / "均值"）始终保留；无法识别时原样返回。
+    """
+    m_tokens = mean_seg.split()
+    if not m_tokens:
+        return mean_seg
+    head = m_tokens[0] if m_tokens[0].endswith("均值") else ""
+    rest = m_tokens[1:] if head else list(m_tokens)
+    own_tokens = own_seg.split()
+    i = 0
+    while i < len(rest) - 1 and i < len(own_tokens) and rest[i] == own_tokens[i]:
+        i += 1
+    body = " ".join(rest[i:]) if rest[i:] else (rest[-1] if rest else "")
+    if not head:
+        return body or mean_seg
+    return f"{head} {body}".strip()
+
+
 def _rounded_rect_path(x0: float, y0: float, x1: float, y1: float, r: float) -> str:
     """圆角矩形 SVG path（plotly shape type='path'，数据坐标）。"""
     r = min(r, (x1 - x0) / 2.0, (y1 - y0) / 2.0)
@@ -660,6 +705,7 @@ def _rounded_rect_path(x0: float, y0: float, x1: float, y1: float, r: float) -> 
     )
 
 
+@st.cache_data(ttl=300, show_spinner=False, hash_funcs={dict: _hash_obj, list: _hash_obj})
 def build_dimension_tree(root: dict, children: list, dim_color: str,
                          orientation: str = "h") -> go.Figure:
     """构建「维度分析树」节点连线层级图（3 层：根 -> 二级指标 -> 明细叶子）。
@@ -681,7 +727,7 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
     PAD_X = 14         # 节点水平内边距
     NODE_H2 = 46       # 双行节点高（根 / 二级）
     NODE_H1 = 30       # 单行叶子高
-    VGAP = 16          # 叶子行间距
+    VGAP = 28          # 横向布局时子节点垂直间距（原 16，调大后更舒展）
     HGAP = 64          # 层级间距
 
     def _node_w(lines, font=FONT):
@@ -696,28 +742,43 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
         child_ws.append(_node_w(c_lines))
     max_child_w = max(child_ws) if child_ws else 0
 
-    # 纵向布局专用：叶子长标签拆两行（第一行个人值，第二行对比值，行内「｜」
-    # 分隔改为两段），相邻叶子间距不足时优先缩字号（最小 10px），不允许重叠。
+    # 纵向布局专用：叶子长标签拆行显示（第一行个人值、第二行对比值，行内「｜」
+    # 分隔改为两段；≥6 个分支时进一步拆三行：个人值 / 均值 / 权重），均值段与
+    # 本人值段重复的指标名只保留一次；相邻叶子间距不足时优先缩字号
+    #（最小 10px），不允许重叠。
     leaf_font = FONT_SMALL
     leaf_lines_v: list = [None] * len(children)
+    three_line = False
     if orientation == "v":
-        V_BUDGET = 1000.0   # 展开向像素预算（数据坐标 1:1 = 像素）
+        V_BUDGET = 950.0    # 展开向像素预算（数据坐标 1:1 ≈ 像素）
+        V_GAP = 10.0        # 相邻叶子最小水平间距
+        three_line = len(children) >= 6
         while True:
             leaf_lines_v = []
             for ch in children:
-                if ch.get("leaf"):
-                    parts = [p.strip() for p in ch["leaf"].split("｜") if p.strip()]
-                    # _add_node 两行布局中 lines[1] 为视觉上行：第一行个人值、第二行对比值
-                    leaf_lines_v.append([" ".join(parts[1:]), parts[0]]
-                                        if len(parts) > 1 else [parts[0]])
-                else:
+                if not ch.get("leaf"):
                     leaf_lines_v.append(None)
+                    continue
+                parts = [p.strip() for p in ch["leaf"].split("｜") if p.strip()]
+                if len(parts) >= 3:
+                    own = parts[0]
+                    mean = _shorten_mean(parts[1], own)
+                    weight = parts[2]
+                    if three_line:
+                        # _add_node 多行布局中靠后的行在视觉上靠上
+                        leaf_lines_v.append([weight, mean, own])
+                    else:
+                        leaf_lines_v.append([f"{mean} · {weight}", own])
+                elif len(parts) == 2:
+                    leaf_lines_v.append([parts[1], parts[0]])
+                else:
+                    leaf_lines_v.append(parts[:1])
             leaf_ws_v = [
                 (_node_w(ll, leaf_font) if ll else 0) for ll in leaf_lines_v
             ]
             span_need = (
                 sum(max(leaf_ws_v[i], child_ws[i]) for i in range(len(children)))
-                + VGAP * max(0, len(children) - 1) + 2 * 24.0
+                + V_GAP * max(0, len(children) - 1) + 2 * 24.0
             )
             if span_need <= V_BUDGET or leaf_font <= 10:
                 break
@@ -742,12 +803,13 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
         child_pos.append((thick, child_ws[i], has_leaf))
 
     PAD_S = 24.0
+    slot_gap = VGAP if orientation == "h" else 10.0   # 纵向用更小但足够的叶间距
     centers: list[float] = []   # 每个 slot 的展开向中心坐标（变距：相邻不重叠）
     acc = PAD_S
     for thick, _w, _hl in child_pos:
         acc += thick / 2.0
         centers.append(acc)
-        acc += thick / 2.0 + VGAP
+        acc += thick / 2.0 + slot_gap
     span_max = (centers[-1] + child_pos[-1][0] / 2.0 + PAD_S) if centers else 120.0
     root_sc = (centers[0] + centers[-1]) / 2.0 if centers else 60.0
 
@@ -755,10 +817,11 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
     # depth 坐标（横向时向右；纵向时向下）。
     # 注意：节点在 depth 向的厚度 = 横向为节点宽，纵向为节点高（NODE_H2）。
     if orientation == "v":
+        LEAF_H_V = 58.0 if three_line else float(NODE_H2)
         d0 = 20.0
         d1 = d0 + NODE_H2 + HGAP
         d2 = d1 + NODE_H2 + HGAP
-        depth_max = d2 + NODE_H2 + 20.0
+        depth_max = d2 + LEAF_H_V + 20.0
     else:
         d0, d1 = 20.0, 20.0 + root_w + HGAP
         d2 = d1 + max_child_w + HGAP
@@ -803,7 +866,7 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
                 font=dict(size=fonts[1], color=font_color),
                 xanchor="center", yanchor="middle",
             ))
-        else:
+        elif len(lines) == 2:
             # 注意 y 轴反向：cy-10 为视觉上行，cy+8 为视觉下行
             text0 = f"<b>{lines[0]}</b>" if bold_line == 0 else lines[0]
             text1 = f"<b>{lines[1]}</b>" if bold_line == 1 else lines[1]
@@ -817,6 +880,17 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
                 font=dict(size=fonts[1], color=font_color),
                 xanchor="center", yanchor="middle",
             ))
+        else:
+            # 三行叶子（纵向 ≥6 分支）：靠后的行视觉靠上（y 轴反向）
+            offs = (14, -2, -18)
+            for li, t in enumerate(lines[:3]):
+                annotations.append(dict(
+                    x=cx, y=cy + offs[li],
+                    text=f"<b>{t}</b>" if li == bold_line else t,
+                    showarrow=False,
+                    font=dict(size=fonts[min(li, len(fonts) - 1)], color=font_color),
+                    xanchor="center", yanchor="middle",
+                ))
         if hover:
             # 三个隐形热点覆盖节点大部分区域，悬停显示完整数值
             for f in (0.25, 0.5, 0.75):
@@ -856,11 +930,11 @@ def build_dimension_tree(root: dict, children: list, dim_color: str,
             child_dthick = cw if orientation == "h" else float(NODE_H2)
             if orientation == "v":
                 l_lines = leaf_lines_v[slot] or [ch["leaf"]]
-                _add_node(d2, sc, leaf_ws[slot], NODE_H2,
+                _add_node(d2, sc, leaf_ws[slot], LEAF_H_V,
                           l_lines, THEME_PRIMARY_LIGHT, THEME_TEXT,
                           ch.get("leaf_hover") or ch.get("hover"),
                           fonts=(leaf_font, leaf_font),
-                          bold_line=1 if len(l_lines) > 1 else 0)
+                          bold_line=len(l_lines) - 1)
             else:
                 lw = _node_w([ch["leaf"]], FONT_SMALL)
                 _add_node(d2, sc, lw, NODE_H1,

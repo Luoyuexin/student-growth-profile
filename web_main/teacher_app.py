@@ -37,6 +37,7 @@ from config_setting import (
     NEUTRAL_BG, NEUTRAL_BORDER,
     HANDBOOK_RULES,
     SPINNER_AI, SPINNER_DATA,
+    build_theme_css,
 )
 
 
@@ -46,58 +47,8 @@ DIM_COLOR_LIST = [DIMENSION_COLORS[d] for d in DIMENSION_ORDER]
 
 
 def _inject_theme_css() -> None:
-    """注入全局 CSS：灰绿商务风主题。"""
-    st.markdown(f"""
-    <style>
-    .stApp {{
-        background-color: {THEME_BG} !important;
-    }}
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 6px;
-        border-bottom: 1px solid {THEME_CARD_BORDER};
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: {THEME_CARD_BG};
-        border: 1px solid {THEME_CARD_BORDER};
-        border-radius: 8px 8px 0 0;
-        color: {THEME_TEXT_SUB};
-        padding: 10px 18px;
-        font-weight: 500;
-    }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {THEME_PRIMARY_LIGHT};
-        color: {THEME_TEXT};
-        border-bottom: 2px solid {THEME_PRIMARY};
-    }}
-    .stButton>button {{
-        border: 1px solid {THEME_PRIMARY} !important;
-        color: {THEME_PRIMARY_DARK} !important;
-        background-color: {THEME_CARD_BG} !important;
-        border-radius: 8px !important;
-        font-weight: 500;
-    }}
-    .stButton>button:hover {{
-        background-color: {THEME_PRIMARY_LIGHT} !important;
-        color: {THEME_TEXT} !important;
-    }}
-    .stDownloadButton>button {{
-        border: 1px solid {THEME_PRIMARY} !important;
-        color: {THEME_CARD_BG} !important;
-        background-color: {THEME_PRIMARY} !important;
-        border-radius: 8px !important;
-        font-weight: 500;
-    }}
-    .stDownloadButton>button:hover {{
-        background-color: {THEME_PRIMARY_DARK} !important;
-        border-color: {THEME_PRIMARY_DARK} !important;
-    }}
-    .stExpander {{
-        border: 1px solid {THEME_CARD_BORDER};
-        border-radius: 12px;
-        background-color: {THEME_CARD_BG};
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+    """注入全局 CSS：拿破仑黄暖金主题（样式统一由 config_setting 提供）。"""
+    st.markdown(build_theme_css(), unsafe_allow_html=True)
 
 
 def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_generator.DeltaGenerator:
@@ -130,15 +81,9 @@ def _metric_card(title: str, value: str, subtitle: str | None = None,
 
 
 def _risk_pill(level: str) -> str:
-    """生成柔和风险标签。"""
-    bg = RISK_SOFT_BG.get(level, NEUTRAL_BG)
-    border = RISK_SOFT_BORDER.get(level, NEUTRAL_BORDER)
-    text = RISK_SOFT_TEXT.get(level, THEME_TEXT_SUB)
-    return (
-        f'<span style="display:inline-block;background:{bg};border:1px solid {border};'
-        f'border-radius:12px;padding:2px 10px;color:{text};font-size:12px;font-weight:500;">'
-        f'{level}</span>'
-    )
+    """生成柔和风险标签（纯文本，用于 st.expander 等不支持 HTML 的标题）。"""
+    emoji = {"正常": "🟢", "关注": "🟡", "高危": "🔴"}.get(level, "⚪")
+    return f"{emoji} {level}"
 
 
 def _recompute_risk(classes: list[str]) -> None:
@@ -218,11 +163,17 @@ def render_teacher_page(teacher: dict) -> None:
                 st.session_state.risk_banner_dismissed = True
                 st.rerun()
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "班级整体画像", "学生列表", "风险预警", "学院宏观研判", "年级分析树", "AI 对话助手", "配置管理"])
+    TEACHER_TABS = [
+        "班级整体画像", "学生列表", "风险预警", "学院宏观研判", "年级分析树", "AI 对话助手", "配置管理"]
+    # 顶部页签导航（恢复 tabs 形态）
+    tabs = st.tabs(TEACHER_TABS)
+
+    # 班级画像明细：页签会同时求值，这里集中取一次，供画像 / 宏观研判 / AI 对话共用。
+    # （此前 recs 只在个别页签分支内赋值，切到 AI 对话助手时直接报 UnboundLocalError）
+    recs = orm_ops.get_records_for_analysis(classes)
 
     # ===================== Tab1 班级整体画像 =====================
-    with tab1:
+    with tabs[0]:
         _ai_status_banner()
         distribution = orm_ops.get_class_distribution(classes)
         total = sum(distribution.values())
@@ -239,7 +190,6 @@ def render_teacher_page(teacher: dict) -> None:
                                      accent=RISK_SOFT_TEXT["关注"]), unsafe_allow_html=True)
         with c4:
             avg_score = 0.0
-            recs = orm_ops.get_records_for_analysis(classes)
             if recs:
                 avg_score = pd.DataFrame(recs)["composite_score"].mean()
             st.markdown(_metric_card("班级均分", f"{avg_score:.1f}"), unsafe_allow_html=True)
@@ -289,9 +239,13 @@ def render_teacher_page(teacher: dict) -> None:
                     with st.spinner(SPINNER_AI):
                         txt, ok = ai.generate_class_summary(agg)
                     if ok:
-                        _render_ai_text(txt)
+                        st.session_state["ai_class_summary"] = txt
                     else:
+                        st.session_state["ai_class_summary"] = f"⚠️ {txt}"
                         st.warning(txt)
+                saved_summary = st.session_state.get("ai_class_summary")
+                if saved_summary:
+                    _render_ai_text(saved_summary)
 
         card = _card("批量报告导出")
         with card:
@@ -305,7 +259,7 @@ def render_teacher_page(teacher: dict) -> None:
                 os.remove(path)
 
     # ===================== Tab2 学生列表 =====================
-    with tab2:
+    with tabs[1]:
         card = _card("学生列表")
         with card:
             # 隐私徽章（常驻）：脱敏口径说明
@@ -409,7 +363,7 @@ def render_teacher_page(teacher: dict) -> None:
                                 st.warning(txt)
 
     # ===================== Tab3 风险预警 =====================
-    with tab3:
+    with tabs[2]:
         # ---- 手册规则提醒（依据本科生手册硬性规定，只列需要跟进的项）----
         card = _card("手册规则提醒")
         with card:
@@ -491,9 +445,8 @@ def render_teacher_page(teacher: dict) -> None:
                             st.rerun()
 
     # ===================== Tab4 学院宏观研判（D3） =====================
-    with tab4:
+    with tabs[3]:
         _ai_status_banner()
-        recs = orm_ops.get_records_for_analysis(classes)
         if not recs:
             st.info("暂无画像数据：请先在「配置管理」页点击「重新执行分析流水线」生成数据。")
         else:
@@ -559,11 +512,11 @@ def render_teacher_page(teacher: dict) -> None:
                     st.plotly_chart(stack, use_container_width=True)
 
     # ===================== Tab5 年级分析树（六维 Treemap） =====================
-    with tab5:
+    with tabs[4]:
         _render_grade_trees(classes)
 
     # ===================== Tab6 AI 对话助手（F5） =====================
-    with tab6:
+    with tabs[5]:
         _ai_status_banner()
         card = _card("AI 对话助手（班级视角）")
         with card:
@@ -578,19 +531,19 @@ def render_teacher_page(teacher: dict) -> None:
                         st.write(msg["content"])
             q = st.chat_input("向 AI 提问，例如：本班哪个模块最需加强？")
             if q:
+                # 先把问答写进历史，再整体重绘一次：
+                # 否则本轮消息会被渲染到输入框下方，出现「输入框夹在对话中间」的顺序错乱
                 st.session_state.tea_chat.append({"role": "user", "content": q})
-                with st.chat_message("user"):
-                    st.write(q)
-                ctx = _build_class_agg(pd.DataFrame(recs), orm_ops.get_class_distribution(classes)) \
-                    if recs else {}
-                with st.chat_message("assistant"):
-                    with st.spinner(SPINNER_AI):
-                        txt, ok = ai.chat_answer(q, ctx)
-                    _render_ai_text(txt)
+                ctx = (_build_class_agg(pd.DataFrame(recs),
+                                        orm_ops.get_class_distribution(classes))
+                       if recs else {})
+                with st.spinner(SPINNER_AI):
+                    txt, ok = ai.chat_answer(q, ctx)
                 st.session_state.tea_chat.append({"role": "assistant", "content": txt})
+                st.rerun()
 
     # ===================== Tab7 配置管理 =====================
-    with tab7:
+    with tabs[6]:
         card = _card("预警阈值与聚类参数配置")
         with card:
             st.caption("以下调整为当前进程内存配置，重新运行后恢复默认值；"

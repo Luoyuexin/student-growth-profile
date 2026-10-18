@@ -75,9 +75,9 @@ python data_source/generate_mock_data.py
 
 ### 3. 配置 AI 大模型（可选，创新点功能需要）
 
-`config_setting/llm_config.yaml` 已预置好，默认对接**火山方舟 · GLM-5.3-Flash**，**只需填入 API Key**：
+`config_setting/llm_config.yaml` 已预置好，默认对接**火山方舟 · Doubao-Seed-2.0-mini**（`doubao-seed-2-0-mini-260428`），**只需填入 API Key**：
 
-1. 到火山方舟控制台（console.volcengine.com/ark）创建 API Key，并**在模型广场开通 `glm-5-3-flash-260828`**。
+1. 到火山方舟控制台（console.volcengine.com/ark）创建 API Key，并**在模型广场开通 `doubao-seed-2-0-mini-260428`**。
 2. 把 Key 粘贴进 `config_setting/llm_config.yaml` 的 `api_key` 一行（`enabled` 已为 `true`）。
 3. 验证连通性（用项目自带的检测函数，会直接告诉你失败原因）：
 
@@ -89,7 +89,7 @@ python -c "from ai_insight import llm_client as c; print(c.test_connection())"
 
 - 接口为 **OpenAI 兼容**格式，可对接火山方舟、DeepSeek、通义千问、智谱 GLM、OpenAI 等；切换服务商只需改 `base_url` / `model` / `api_key`。
 - 采用 **HTTP 直连**（`requests`，缺失时回退标准库 `urllib`），不依赖 `openai` SDK，避免 SDK 与 `httpx` 的版本冲突。
-- `thinking` 字段按模型自适应：**GLM-5.3 / GLM-5.3-Flash 的深度思考不可关闭**，传 `disabled` 会被服务端拒绝，因此对这类模型自动传 `enabled`；豆包等普通模型则自动传 `disabled` 以降低延迟。
+- `thinking` 字段按模型自适应：**GLM-5.3 / 5.3-Flash 这类推理模型的深度思考不可关闭**，传 `disabled` 会被服务端拒绝，因此对这类模型自动传 `enabled`；豆包等普通模型则传 `disabled` 以降低延迟。若某模型不认识该字段（HTTP 400），会自动去掉 `thinking` / `reasoning_effort` 重试一次。
 - 推理型模型思考过程按输出 token 计费，可用 `reasoning_effort: low`（GLM-5.x 支持 low / high / max）平衡质量、延迟与成本。
 - **隐私保障**：系统内置脱敏网关，向云端发送前会剥离姓名 / 学号等 PII，仅传维度分值与班级 / 年级聚合统计；`llm_config.yaml` 含密钥，已被 `.gitignore` 忽略，不会入库。
 

@@ -22,9 +22,9 @@ base_url: "https://ark.cn-beijing.volces.com/api/v3"
 api_key: "sk-xxxxxxxxxxxxxxxx"
 
 # 实际可用的模型名（方舟模型广场中的 Model ID），例如：
-#   火山方舟:  glm-5-3-flash-260828 / glm-5.2 / doubao-seed-2-0-lite-260428
+#   火山方舟:  doubao-seed-2-0-mini-260428 / doubao-seed-2-0-lite-260428 / glm-5-3-flash-260828
 #   其他:      gpt-4o-mini / deepseek-chat / qwen-plus / glm-4
-model: "glm-5-3-flash-260828"
+model: "doubao-seed-2-0-mini-260428"
 
 # 生成温度，0~1。GLM-5.3 / GLM-5.3-Flash 建议使用默认值 1.0
 temperature: 1.0

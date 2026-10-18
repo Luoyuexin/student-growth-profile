@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Dict, List, Tuple
 
 import numpy as np
+import streamlit as st
 
 from config_setting import (
     DIMENSION_LABELS,
@@ -22,6 +23,12 @@ from config_setting import (
     HANDBOOK_RULES,
     TAG_DICT,
 )
+
+
+def _hash_obj(obj) -> int:
+    """把 dict/list 等结构稳定序列化后取哈希，供 @st.cache_data 使用。"""
+    import json
+    return hash(json.dumps(obj, sort_keys=True, default=str))
 
 
 def _clip01(x: float) -> float:
@@ -57,6 +64,7 @@ def compute_sub_scores(record: dict) -> Dict[str, Dict[str, float]]:
     return result
 
 
+@st.cache_data(ttl=300, show_spinner=False, hash_funcs={dict: _hash_obj})
 def compute_dimension_scores(record: dict) -> Dict[str, Tuple[float, Dict[str, float]]]:
     """计算六个维度得分与其二级指标明细。
 
@@ -96,31 +104,33 @@ def _fmt_pct(v: float) -> str:
 _WORDCLOUD_NUMERIC_FORMATTERS = {
     "gpa": lambda v: f"GPA {'%g' % round(float(v), 2)}",
     "attendance_rate": lambda v: f"出勤 {_fmt_pct(v)}",
+    "homework_timely_rate": lambda v: f"作业及时 {_fmt_pct(v)}",
+    "credit_progress": lambda v: f"学分 {_fmt_pct(v)}",
+    "study_hours": lambda v: f"自习 {float(v):.0f}h",
+    "library_visits": lambda v: f"图书馆 {float(v):.0f} 次",
     "competition_awards": lambda v: f"竞赛 {float(v):.0f} 项",
     "psy_score": lambda v: f"心理测评 {float(v):.0f}",
     "physical_test_score": lambda v: f"体测 {float(v):.0f}",
-    "sleep_regularity": lambda v: f"睡眠规律 {_fmt_pct(v)}",
     "second_class_count": lambda v: f"二课活动 {float(v):.0f} 次",
     "volunteer_hours": lambda v: f"志愿 {float(v):.0f}h",
-    "social_connection": lambda v: f"人际交往 {float(v):.0f}",
-    "canteen_regularity": lambda v: f"就餐规律 {_fmt_pct(v)}",
-    "dorm_regularity": lambda v: f"作息规律 {_fmt_pct(v)}",
     "consumption_daily": lambda v: f"消费 {float(v):.0f}元/天",
-    "collective_participation": lambda v: f"集体参与 {_fmt_pct(v)}",
-    "grit": lambda v: f"恒毅力 {float(v):.0f}",
-    "self_control": lambda v: f"自制力 {float(v):.0f}",
-    "engagement": lambda v: f"投入度 {float(v):.0f}",
-    "metacognition": lambda v: f"后设认知 {float(v):.0f}",
-    "self_perception": lambda v: f"自我感知 {float(v):.0f}",
-    "learning_motivation": lambda v: f"学习动机 {float(v):.0f}",
+    "sleep_regularity": lambda v: f"睡眠 {_fmt_pct(v)}",
+    "dorm_regularity": lambda v: f"宿舍 {_fmt_pct(v)}",
+    "breakfast_rate": lambda v: f"早餐 {_fmt_pct(v)}",
+    "social_connection": lambda v: f"社交 {float(v):.0f}",
 }
 
 
+def _normalize_weight(w: float) -> float:
+    """把各类标签权重压缩到 60~100，降低词云字号极差，同时保留相对大小。"""
+    return max(60.0, min(100.0, 60.0 + float(w) * 0.4))
+
+
 def _add_tag(pool: Dict[str, float], text: str, weight: float) -> None:
-    """同文本去重，权重取最大。"""
+    """同文本去重，权重取最大并做归一化压缩。"""
     if not text:
         return
-    w = max(1.0, float(weight))
+    w = _normalize_weight(max(1.0, float(weight)))
     if w > pool.get(text, 0.0):
         pool[text] = w
 

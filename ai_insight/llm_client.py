@@ -377,7 +377,22 @@ def _json_block(data: Any) -> str:
 # ---------------------------------------------------------------------------
 import re as _re
 
-_CITATION_RE = _re.compile(r"[【\[(](F\d{2,3})[】\])]")
+_CITATION_RE = _re.compile(
+    r"[【\[\(]\s*F\d{2,3}(?:\s*[,，、;；/]\s*F\d{2,3})*\s*[】\])]"
+)
+_CITATION_ID_RE = _re.compile(r"F\d{2,3}")
+
+
+def _cited_ids(text: str) -> list:
+    """取出文本中所有引用块内的卡片编号。
+
+    兼容一个方括号里写多个编号的写法（[F01, F10] / 【F01、F10】）——
+    模型很爱这么合并引用，早期只认单个 [F01]，会把这类句子判成「无引用」而整段删除。
+    """
+    return [
+        i for block in _CITATION_RE.findall(text or "")
+        for i in _CITATION_ID_RE.findall(block)
+    ]
 _NUMBER_CLAIM_RE = _re.compile(r"\d")
 
 # 数据断言特征：「X 分 / X% / 第 X 名 / 等级」等对既有数据的量化陈述，
@@ -500,6 +515,8 @@ CITATION_INSTRUCTION = (
     "引用要求：你的每一条含有具体数值或等级判断的结论，必须在句末标注其支撑事实卡片编号"
     "（如 [F01]、[F12]）；只能引用下列卡片中出现的数值，不得编造卡片外的数据；"
     "建议类内容若依据某条手册提醒，必须标注对应 [F4x] 编号。"
+    "同一句话依据多张卡片时，可合并标注在一个方括号内（如 [F01, F12]），"
+    "但务必与结论写在同一句的句末。"
 )
 
 
@@ -518,11 +535,10 @@ def validate_cited_answer(text: str, facts: List[Dict[str, str]]) -> Dict[str, A
     dropped: List[str] = []
 
     def _strip_invalid(line: str) -> str:
+        """去掉引用了不存在编号的引用块；块内仍有有效编号则重建成 [F01, F10]。"""
         def repl(m):
-            fid = m.group(1)
-            if fid in valid_ids:
-                return m.group(0)
-            return ""
+            ids = [i for i in _CITATION_ID_RE.findall(m.group(0)) if i in valid_ids]
+            return "[" + ", ".join(ids) + "]" if ids else ""
         return _CITATION_RE.sub(repl, line)
 
     def _is_suggestion_quantity(sentence: str) -> bool:
@@ -543,19 +559,28 @@ def validate_cited_answer(text: str, facts: List[Dict[str, str]]) -> Dict[str, A
         if not line:
             kept_lines.append(raw_line)
             continue
-        ids = _CITATION_RE.findall(line)
-        valid_hits = [i for i in ids if i in valid_ids]
+        valid_hits = [i for i in _cited_ids(line) if i in valid_ids]
 
-        # 以句号 / 分号切分，逐句判定含数值但无引用的句子
+        # ① 整行已标注有效证据：视为该段共享这些引用，直接放行。
+        #    模型习惯「一段话末尾统一标 [F01][F10]」，若仍按分句逐个校验，
+        #    引用会被句号切到单独的片段里，导致整段正文被判无据而删空
+        #    （教师端研判摘要只剩标题、对话助手回复空白都是这个原因）。
+        if valid_hits:
+            rebuilt = _strip_invalid(line)
+            if rebuilt:
+                kept_lines.append(rebuilt)
+                used.extend(valid_hits)
+            continue
+
+        # ② 整行没有任何有效引用：逐句剔除「含数值的数据断言」，动作建议放行
         parts = _re.split(r"(?<=[。！；;])", line)
         good_parts = []
         for p in parts:
             p_stripped = p.strip()
             if not p_stripped:
                 continue
-            cites = [i for i in _CITATION_RE.findall(p) if i in valid_ids]
             has_number = bool(_NUMBER_CLAIM_RE.search(_CITATION_RE.sub("", p)))
-            if has_number and not cites and not _is_suggestion_quantity(p):
+            if has_number and not _is_suggestion_quantity(p):
                 dropped.append(p_stripped)
                 continue
             good_parts.append(p)
@@ -563,7 +588,6 @@ def validate_cited_answer(text: str, facts: List[Dict[str, str]]) -> Dict[str, A
         rebuilt = _strip_invalid(rebuilt)
         if rebuilt:
             kept_lines.append(rebuilt)
-            used.extend(valid_hits)
 
     clean_text = "\n".join(l for l in kept_lines if l is not None).strip()
     used = sorted(set(used))

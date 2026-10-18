@@ -1,0 +1,17 @@
+[server]
+# 关闭文件监听器，避免 Streamlit 在每次交互时扫描整个项目目录，
+# 能显著降低本地运行时的 IO 抖动与响应延迟。
+fileWatcherType = "none"
+
+[browser]
+# 不向 Streamlit 官方发送使用统计信息，减少无关网络请求。
+gatherUsageStats = false
+
+# 拿破仑黄主题：让原生控件（单选圆点 / 复选 / 滑块 / spinner）与企业色一致。
+# 否则 Streamlit 默认的 #FF4B4B 红色会和暖金主题打架。
+[theme]
+primaryColor = "#E3B23C"
+backgroundColor = "#FBF6EA"
+secondaryBackgroundColor = "#FFFCF5"
+textColor = "#2E2A22"
+font = "sans serif"

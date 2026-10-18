@@ -27,6 +27,8 @@ from config_setting import (
     THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_PRIMARY_LIGHT,
     THEME_CARD_BG, THEME_CARD_BORDER, THEME_TEXT, THEME_TEXT_SUB,
     SPINNER_DATA,
+    THEME_GRADIENT,
+    build_theme_css,
 )
 
 from web_main.student_app import render_student_page
@@ -86,25 +88,39 @@ def _do_login(role: str, uid: str, pwd: str) -> tuple[bool, dict | None]:
 
 
 def _inject_login_css() -> None:
-    """登录页品牌化样式：卡片式通道页签 + 技术徽章。"""
+    """登录页样式：统一主题 + 卡片式通道页签（金色渐变选中态）。"""
+    st.markdown(build_theme_css(), unsafe_allow_html=True)
     st.markdown(f"""
     <style>
-    .stTabs [data-baseweb="tab-list"] {{ gap: 10px; }}
-    .stTabs [data-baseweb="tab"] {{
-        background-color: {THEME_CARD_BG};
-        border: 1px solid {THEME_CARD_BORDER};
-        border-radius: 12px;
-        color: {THEME_TEXT_SUB};
-        padding: 14px 28px;
-        font-size: 16px;
-        font-weight: 600;
+    /* 通道页签放大成卡片（登录页专属，覆盖统一主题的窄条样式） */
+    .stTabs [role="tablist"], .stTabs [data-baseweb="tab-list"] {{
+        gap: 12px;
+        border-bottom: none !important;
+        margin-bottom: 16px;
     }}
-    .stTabs [aria-selected="true"] {{
-        background-color: {THEME_PRIMARY_LIGHT};
-        color: {THEME_TEXT};
-        border: 1px solid {THEME_PRIMARY};
-        border-bottom: 3px solid {THEME_PRIMARY};
+    .stTabs [data-testid="stTab"], .stTabs [data-baseweb="tab"] {{
+        height: 58px;
+        padding: 0 30px;
+        border: 1px solid {THEME_CARD_BORDER} !important;
+        border-bottom: 1px solid {THEME_CARD_BORDER} !important;
+        border-radius: 14px !important;
+        background: {THEME_CARD_BG} !important;
+        color: {THEME_TEXT_SUB} !important;
+        font-size: 16px !important;
+        box-shadow: 0 1px 4px rgba(154,112,22,0.05);
     }}
+    .stTabs [data-testid="stTab"]:hover, .stTabs [data-baseweb="tab"]:hover {{
+        border-color: {THEME_PRIMARY} !important;
+        background: {THEME_PRIMARY_LIGHT} !important;
+        color: {THEME_PRIMARY_DARK} !important;
+    }}
+    .stTabs [data-testid="stTab"][aria-selected="true"], .stTabs [aria-selected="true"] {{
+        border: 1px solid {THEME_PRIMARY} !important;
+        background: {THEME_GRADIENT} !important;
+        color: #3A2A05 !important;
+        box-shadow: 0 4px 14px rgba(227,178,60,0.30);
+    }}
+    .stTabs [data-testid="stTab"][aria-selected="true"] p {{ color: #3A2A05 !important; }}
     </style>
     """, unsafe_allow_html=True)
 
