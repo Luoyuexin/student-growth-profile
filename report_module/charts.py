@@ -108,17 +108,23 @@ def _dark_enough_pool(palette: list, max_lightness: float = 0.72) -> list:
     return out or list(palette)
 
 
-_WORDCLOUD_SMALL_POOL = _dark_enough_pool(C.WORDCLOUD_PALETTE)
-
 # 词云布词随机种子序列：首个使可见词 ≥40 的种子被采用（确定性复现）
 _WORDCLOUD_SEEDS = (42, 7, 13, 21, 33, 99, 5, 77)
+
+
+def _wc_small_pool() -> list:
+    """按「当前皮肤」实时筛出小字号可用深色池。
+
+    不能写成模块级常量：那会在 import 时固化成默认皮肤色板，换肤后词云仍是旧配色。
+    """
+    return _dark_enough_pool(C.WORDCLOUD_PALETTE)
 
 
 def _wc_color_func(word, font_size, position, orientation,
                    random_state=None, **kwargs):
     """词云取色：字号越大颜色越深，整体限制在主题低饱和色板内。
 
-    小字号词只用深色系，避免浅色小字看不清。
+    小字号词只用深色系，避免浅色小字看不清；色池全部按当前皮肤实时取。
     """
     if random_state is None:
         random_state = random
@@ -127,7 +133,7 @@ def _wc_color_func(word, font_size, position, orientation,
     elif font_size > 55:
         pool = C.WORDCLOUD_MID_POOL
     else:
-        pool = _WORDCLOUD_SMALL_POOL
+        pool = _wc_small_pool()
     return random_state.choice(pool)
 
 
@@ -446,10 +452,12 @@ def _bust_mask(width: int = 600, height: int = 620):
 
 
 @st.cache_data(ttl=300, show_spinner=False, hash_funcs={list: _hash_obj})
-def build_wordcloud(tags: list, width: int = 660, height: int = 680):
+def build_wordcloud(tags: list, width: int = 660, height: int = 680, skin: str = ""):
     """构建学生画像词云图（Matplotlib Figure）。
 
     tags: [(标签, 权重), ...]，字号与权重正相关规则不变。
+    skin: 仅用于 @st.cache_data 的缓存分区。词云配色按当前皮肤实时取，
+          缓存键若不含皮肤，网页内换肤会直接复用上一套皮肤生成的图。
     使用半身人形剪影 mask（头部 + 肩部 + 上胸），人形外沿以主题边框色细线勾勒；
     词密集填充轮廓内部，配色沿用主题低饱和色板（小字只用深色系保证可读）。
     返回 matplotlib.figure.Figure；若 wordcloud 不可用或无中文字体，回退为水平条形词频图。

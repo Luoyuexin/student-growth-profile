@@ -222,7 +222,7 @@ _SKINS = {
                       'social': '#C97F3C',
                       'life': '#9B7B45',
                       'morality': '#8E6F9E',
-                      'non_cog': '#5A7EA6'},
+                      'non_cog': '#8A6410'},
  'CHART_SECONDARY': '#6E8F6A',
  'CHART_ACCENT': '#C97F3C',
  'CHART_NEUTRAL': '#B5A98F',
@@ -237,7 +237,7 @@ _SKINS = {
                        '#6E8F6A',
                        '#8A9A6B',
                        '#8E6F9E',
-                       '#5F8A9C'],
+                       '#6E5010'],
  'WORDCLOUD_DEEP_POOL': ['#8A6410', '#6E5010', '#A8683A', '#7A5E86'],
  'WORDCLOUD_MID_POOL': ['#C9971F', '#C97F3C', '#8A9A6B', '#8E6F9E'],
  'RADAR_SELF_FILL': 'rgba(227,178,60,0.26)',
@@ -296,6 +296,15 @@ def build_theme_css() -> str:
     避免升级后样式静默失效。
     """
     p = get_palette()
+    # Streamlit 用内联 linear-gradient 画滑块「已填充段」，渐变色写死为
+    # config.toml 的 primaryColor（雾蓝）。雾蓝皮肤下与主题一致，保留原样；
+    # 切到其他皮肤时必须抹掉渐变，否则换肤后仍是一条蓝线，只能改用暖色轨道，
+    # 由金色拇指指示当前位置。
+    slider_track_reset = "" if _ACTIVE_SKIN == SKIN_MIST_BLUE else (
+        'div[data-testid="stSlider"] div[class*="e23vpic5"] { '
+        'background-image: none !important; '
+        'background-color: ' + p['THEME_GRID'] + ' !important; }'
+    )
     return f"""
     <style>
     /* ---------- 画布：暖米白底 + 左上柔光 + 顶部金线 ---------- */
@@ -442,31 +451,71 @@ def build_theme_css() -> str:
     div[data-testid="stMetricValue"] {{ color: {p['THEME_PRIMARY_DARK']} !important; }}
     div[data-testid="stMetricLabel"] {{ color: {p['THEME_TEXT_SUB']} !important; }}
 
-    /* 皮肤切换：覆盖 Streamlit 原生控件（config.toml 只在进程启动时读取） */
-    div[data-testid="stTextInput"] input,
-    div[data-testid="stNumberInput"] input,
+    /* 皮肤切换：覆盖 Streamlit 1.6x（React Aria）原生控件。
+       config.toml 的 [theme] 只在进程启动时读取，网页内换肤必须靠 CSS 兜底；
+       1.6x 已移除 data-baseweb="select"，改用 data-testid + role="group" 结构。 */
+    div[data-testid="stTextInput"] div[data-testid="stTextInputRootElement"],
+    div[data-testid="stNumberInput"] div[data-testid="stNumberInputContainer"],
     div[data-testid="stTextArea"] textarea,
-    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-    div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {{
+    div[data-testid="stTextArea"] div[data-testid="stTextAreaRootElement"],
+    div[data-testid="stSelectbox"] div[role="group"],
+    div[data-testid="stMultiSelect"] div[role="group"],
+    div[data-testid="stChatInput"] > div,
+    section[data-testid="stFileUploaderDropzone"] {{
         background-color: {p['NATIVE_INPUT_BG']} !important;
         color: {p['THEME_TEXT']} !important;
         border-color: {p['THEME_CARD_BORDER']} !important;
     }}
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stSelectbox"] input,
+    div[data-testid="stMultiSelect"] input,
+    div[data-testid="stChatInput"] textarea {{
+        background-color: transparent !important;
+        color: {p['THEME_TEXT']} !important;
+    }}
     div[data-testid="stTextInput"] input::placeholder,
-    div[data-testid="stNumberInput"] input::placeholder {{
+    div[data-testid="stNumberInput"] input::placeholder,
+    div[data-testid="stChatInput"] textarea::placeholder {{
         color: {p['THEME_TEXT_SUB']} !important;
     }}
-    div[data-testid="stRadio"] [role="radio"][aria-checked="true"] > div,
-    div[data-testid="stCheckbox"] [role="checkbox"][aria-checked="true"] > div {{
+    /* 下拉选项浮层（React Aria Popover 挂在 body 末尾，不在组件容器内） */
+    [role="listbox"], [role="option"], div[data-testid="stSelectboxVirtualDropdown"] {{
+        background-color: {p['THEME_CARD_BG']} !important;
+        color: {p['THEME_TEXT']} !important;
+    }}
+    /* 单选 / 复选选中标记、滑块拇指：按 React Aria 结构精确命中 */
+    div[data-testid="stRadio"] label[data-selected="true"] > div > div > div:first-child,
+    div[data-testid="stRadio"] label[data-selected="true"] div[class*="etak9234"],
+    div[data-testid="stCheckbox"] label[data-selected="true"] > div > div:first-child,
+    div[data-testid="stCheckbox"] label[data-selected="true"] div[class*="ew2p8o3"],
+    div[data-testid="stSlider"] div[class*="e23vpic3"],
+    div[data-testid="stSlider"] div[style*="translate"] {{
         background-color: {p['THEME_PRIMARY']} !important;
         border-color: {p['THEME_PRIMARY']} !important;
     }}
-    div[data-testid="stSlider"] [role="slider"] {{
-        background-color: {p['THEME_PRIMARY']} !important;
-    }}
+    /* 滑块轨道：按皮肤决定是否抹掉 Streamlit 写死的雾蓝渐变（见函数内说明） */
+    {slider_track_reset}
     div[data-testid="stSpinner"] svg path {{
         stroke: {p['THEME_PRIMARY']} !important;
     }}
+    /* 步进按钮 / 发送按钮 / 上传按钮 */
+    button[data-testid="stNumberInputStepUp"],
+    button[data-testid="stNumberInputStepDown"],
+    button[data-testid="stChatInputSubmitButton"] {{
+        background-color: {p['THEME_PRIMARY_LIGHT']} !important;
+        color: {p['THEME_PRIMARY_DARK']} !important;
+        border-color: {p['THEME_CARD_BORDER']} !important;
+    }}
+    /* st.info / st.success 等信息提示条 */
+    div[data-testid="stAlertContainer"] {{
+        background-color: {p['THEME_PRIMARY_LIGHT']} !important;
+        border-left-color: {p['THEME_PRIMARY']} !important;
+        color: {p['THEME_TEXT']} !important;
+    }}
+    div[data-testid="stAlertContainer"] * {{ color: {p['THEME_TEXT']} !important; }}
+    div[data-testid="stSliderThumbValue"],
+    div[data-testid="stSliderThumbValue"] * {{ color: {p['THEME_TEXT']} !important; }}
 
     /* 皮肤切换弹层：跟随当前皮肤，避免 Streamlit 原生主题残留 */
     button[data-testid="stPopoverButton"] {{

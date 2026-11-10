@@ -140,9 +140,12 @@ def _ai_status_banner() -> None:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _wordcloud_png(student_id: str, tags_tuple: tuple, facecolor: str) -> str:
-    """按学号缓存词云 PNG 的 base64 字符串，同一学生第二次进入直接复用。"""
-    fig = chart_builder.build_wordcloud(list(tags_tuple))
+def _wordcloud_png(student_id: str, tags_tuple: tuple, facecolor: str, skin: str) -> str:
+    """按学号 + 皮肤缓存词云 PNG 的 base64 字符串。
+
+    skin 必须进缓存键：否则网页内切换皮肤后会复用上一套皮肤生成的词云图。
+    """
+    fig = chart_builder.build_wordcloud(list(tags_tuple), skin=skin)
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=100, facecolor=facecolor)
     try:
@@ -625,10 +628,11 @@ def _render_overview(student: dict) -> None:
         with card:
             if tags:
                 # 半身人形剪影词云：mask 轮廓内密集填词，外沿细轮廓线勾勒
-                # 按学号 + 标签内容缓存 PNG，避免每次切换页签都重新渲染 matplotlib
+                # 按学号 + 标签 + 皮肤缓存 PNG，避免每次切换页签都重新渲染 matplotlib
                 tags_tuple = tuple(tuple(t) for t in tags)
                 img64 = _wordcloud_png(
-                    str(student.get("student_id") or "x"), tags_tuple, C.THEME_CARD_BG
+                    str(student.get("student_id") or "x"), tags_tuple,
+                    C.THEME_CARD_BG, C.get_skin()
                 )
                 st.markdown(
                     f'<div style="display:flex;justify-content:center;'
