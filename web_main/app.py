@@ -171,8 +171,22 @@ def _tech_badges() -> None:
     )
 
 
+def _logout_button() -> bool:
+    """页面级退出按钮。
+
+    不使用 st.sidebar：只要向侧栏写入内容，Streamlit 在登录后就会自动展开侧栏，
+    挤占主内容区宽度。改为主区域右上角的按钮，所有页签下均可见。
+    """
+    _, col = st.columns([11, 1])
+    with col:
+        return st.button("退出登录", key="global_logout", use_container_width=True)
+
+
 def main() -> None:
-    st.set_page_config(page_title=PLATFORM_NAME, layout="wide")
+    st.set_page_config(
+        page_title=PLATFORM_NAME, layout="wide",
+        initial_sidebar_state="collapsed",
+    )
     _ensure_data()
 
     # 会话状态
@@ -180,20 +194,18 @@ def main() -> None:
         st.session_state.role = None
         st.session_state.user = None
 
-    # 已登录：渲染对应端
-    if st.session_state.role == "student":
-        render_student_page(st.session_state.user)
-        if st.sidebar.button("退出登录"):
+    # 已登录：渲染对应端（退出入口放在主区域，侧栏保持不出现）
+    role = st.session_state.role
+    if role in ("student", "teacher"):
+        if _logout_button():
             st.session_state.role = None
             st.session_state.user = None
+            st.session_state.pop("risk_banner_dismissed", None)
             st.rerun()
-        return
-    if st.session_state.role == "teacher":
-        render_teacher_page(st.session_state.user)
-        if st.sidebar.button("退出登录"):
-            st.session_state.role = None
-            st.session_state.user = None
-            st.rerun()
+        if role == "student":
+            render_student_page(st.session_state.user)
+        else:
+            render_teacher_page(st.session_state.user)
         return
 
     # 未登录：品牌化登录页
