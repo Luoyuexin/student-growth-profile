@@ -245,10 +245,14 @@ def build_theme_css() -> str:
     }}
     /* 演示场景下隐藏右上角 Deploy 按钮，界面更干净 */
     [data-testid="stAppDeployButton"] {{ display: none !important; }}
-    section[data-testid="stSidebar"] {{
-        background: {THEME_BG} !important;
-        border-right: 1px solid {THEME_CARD_BORDER};
-    }}
+    /* 本系统不使用侧栏：强制隐藏侧栏容器、自动导航与折叠控件。
+       Streamlit 前端会记住用户上次的展开状态，仅靠 initial_sidebar_state
+       对已有会话不生效，故在全局主题 CSS 中兜底，保证主区域全宽。
+       选择器用 [data-testid*="Sidebar"] 宽匹配，兼容不同 Streamlit 版本的 DOM 变更。 */
+    section[data-testid="stSidebar"],
+    [data-testid*="Sidebar"],
+    [data-testid="collapsedControl"],
+    [data-testid="stExpandSidebarButton"] {{ display: none !important; }}
     /* 顶部留白收一收，内容更紧凑（默认 96px 偏空） */
     [data-testid="stMainBlockContainer"], .block-container {{
         padding-top: 2.2rem !important;
