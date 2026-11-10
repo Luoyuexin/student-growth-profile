@@ -520,7 +520,7 @@ def render_teacher_page(teacher: dict) -> None:
         _ai_status_banner()
         card = _card("AI 对话助手（班级视角）")
         with card:
-            st.caption("仅基于管辖班级的脱敏聚合数据作答，不泄露个人信息。")
+            st.caption("仅基于管辖班级的脱敏聚合数据作答，不泄露个人信息；支持追问。")
             if "tea_chat" not in st.session_state:
                 st.session_state.tea_chat = []
             for msg in st.session_state.tea_chat:
@@ -537,8 +537,14 @@ def render_teacher_page(teacher: dict) -> None:
                 ctx = (_build_class_agg(pd.DataFrame(recs),
                                         orm_ops.get_class_distribution(classes))
                        if recs else {})
+                # 传近几轮历史（服务层剥离证据脚注并截断），支持「那第二呢」「为什么」式追问
+                history = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.tea_chat[:-1]
+                    if m["role"] in ("user", "assistant")
+                ]
                 with st.spinner(SPINNER_AI):
-                    txt, ok = ai.chat_answer(q, ctx)
+                    txt, ok = ai.chat_answer(q, ctx, history=history)
                 st.session_state.tea_chat.append({"role": "assistant", "content": txt})
                 st.rerun()
 
@@ -770,12 +776,33 @@ def _render_grade_trees(classes: list[str]) -> None:
 
 
 def _build_class_agg(rdf: pd.DataFrame, distribution: dict) -> dict:
-    """构造脱敏聚合统计（供 AI 研判 / 对话使用，无 PII）。"""
+    """构造脱敏聚合统计（供 AI 研判 / 对话使用，无 PII）。
+
+    在样本数 / 维度均值 / 风险分布之外，补充综合均分与手册规则命中统计，
+    让 AI 研判能直接「点名」短板模块和需要干预的群体，而不是复述均值。
+    """
     if rdf is None or rdf.empty:
         return {"student_count": 0, "dimension_means": {}, "risk_distribution": distribution}
     means = rdf[DIM_COLS].mean().round(1)
-    return {
+    agg = {
         "student_count": int(len(rdf)),
         "dimension_means": {lab: float(means[c]) for lab, c in zip(DIM_LABELS, DIM_COLS)},
         "risk_distribution": distribution,
+        "composite_mean": float(rdf["composite_score"].mean().round(1)),
     }
+    # 手册规则命中人数统计（本地解析提醒 JSON，只统计规则号 -> 人数，无 PII）
+    rule_counts: dict = {}
+    if "handbook_reminders" in rdf.columns:
+        for raw in rdf["handbook_reminders"]:
+            try:
+                items = json.loads(raw) if isinstance(raw, str) else (raw or [])
+                for it in items:
+                    rid = it.get("rule") if isinstance(it, dict) else None
+                    if rid:
+                        rule_counts[rid] = rule_counts.get(rid, 0) + 1
+            except (TypeError, ValueError):
+                continue
+    if rule_counts:
+        agg["rule_hits"] = dict(sorted(rule_counts.items(),
+                                       key=lambda kv: kv[1], reverse=True)[:6])
+    return agg

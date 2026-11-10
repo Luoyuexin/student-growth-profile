@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -193,21 +193,29 @@ def _as_text(value: Any) -> str:
     return "" if value is None else str(value)
 
 
-def _create_payload(cfg: LLMConfig, system: str, user: str, max_tokens: Optional[int]) -> Dict[str, Any]:
+def _create_payload(cfg: LLMConfig, system: str, user: str, max_tokens: Optional[int],
+                    history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
     """组装一次对话请求体（OpenAI Chat Completions 兼容格式）。
 
+    history：多轮对话历史（不含 system 与本轮 user），按时间升序，
+             每项 {"role": "user"/"assistant", "content": "..."}。用于 F5 对话式查询，
+             让模型理解追问与指代（如「那第二呢」「为什么」）。
     thinking：按模型自适应。GLM-5.3 / 5.3-Flash 等推理模型思考不可关闭，
               传 disabled 会被服务端拒绝，故对这类模型传 enabled。
     reasoning_effort：仅部分 GLM 模型支持（low / high / max），其他模型不发送。
     """
+    messages: List[Dict[str, str]] = [{"role": "system", "content": _as_text(system)}]
+    for m in history or []:
+        role = "assistant" if m.get("role") == "assistant" else "user"
+        content = _as_text(m.get("content"))
+        if content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": _as_text(user)})
     payload: Dict[str, Any] = {
         "model": cfg.model,
         "temperature": cfg.temperature,
         "max_tokens": int(max_tokens or cfg.max_tokens),
-        "messages": [
-            {"role": "system", "content": _as_text(system)},
-            {"role": "user", "content": _as_text(user)},
-        ],
+        "messages": messages,
     }
     thinking = _resolve_thinking(cfg)
     if thinking:
@@ -280,9 +288,11 @@ def _describe_http_error(status: int, text: str) -> str:
     return " ｜ ".join(parts)
 
 
-def _call(system: str, user: str, max_tokens: Optional[int] = None) -> Optional[str]:
+def _call(system: str, user: str, max_tokens: Optional[int] = None,
+          history: Optional[List[Dict[str, str]]] = None) -> Optional[str]:
     """调用云端 OpenAI 兼容接口（火山方舟 / DeepSeek / 通义等通用）。
 
+    history：多轮对话历史（可选），见 _create_payload 说明。
     任何异常（网络、鉴权、模型未开通、限流、超时）均被捕获并返回 None，
     由上层做优雅降级；失败原因记录在 `get_last_error()` 中，便于快速定位。
     """
@@ -299,7 +309,7 @@ def _call(system: str, user: str, max_tokens: Optional[int] = None) -> Optional[
         "Authorization": f"Bearer {cfg.api_key}",
         "Content-Type": "application/json",
     }
-    payload = _create_payload(cfg, system, user, max_tokens)
+    payload = _create_payload(cfg, system, user, max_tokens, history)
 
     def _do_request(body: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
         """执行一次请求，返回 (文本, 错误说明)。"""
@@ -413,6 +423,80 @@ _SUGGESTION_HINT_RE = _re.compile(
 )
 
 
+def _fnum(v, default=0.0) -> float:
+    """宽松转 float（None / 非数值返回 default），供卡片构建共用。"""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _rank_facts(record: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """计算综合评分在年级 / 班级中的排名与百分位（本地统计，结果无 PII）。
+
+    排名卡片让模型能回答「我排在什么位置」「前百分之多少」这类问题，
+    也是诊断报告判断「相对位置」的关键依据；本地库缺失时静默跳过。
+    """
+    out: List[Tuple[str, str]] = []
+    try:
+        from local_database import orm_ops
+        score = _fnum(record.get("composite_score"))
+        grade = record.get("grade")
+        if grade:
+            peers = [float(p.get("composite_score") or 0)
+                     for p in orm_ops.get_raw_students_by_grade(int(grade))]
+            if len(peers) > 1:
+                rank = sum(1 for s in peers if s > score) + 1
+                pct = rank / len(peers) * 100
+                out.append(("F05", f"综合评分在年级 {len(peers)} 名学生中位列第 {rank} 名"
+                                   f"（约前 {pct:.0f}%）"))
+        cls = record.get("class_name")
+        if cls:
+            peers = [float(p.get("composite_score") or 0)
+                     for p in orm_ops.get_raw_students_by_class(cls)]
+            if len(peers) > 1:
+                rank = sum(1 for s in peers if s > score) + 1
+                pct = rank / len(peers) * 100
+                out.append(("F06", f"综合评分在班级 {len(peers)} 名学生中位列第 {rank} 名"
+                                   f"（约前 {pct:.0f}%）"))
+    except Exception:
+        pass
+    return out
+
+
+def _sub_metric_facts(record: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """每个维度取最强 / 最弱二级指标各一条（本地计算，结果无 PII）。
+
+    仅六维总分时模型只能给「学业偏弱」这类笼统结论；加入二级指标强弱项后，
+    报告才能落到「具体哪一项拖了后腿、强在哪一项」的粒度。
+    """
+    out: List[Tuple[str, str]] = []
+    try:
+        from analysis_core import handbook_rules as hb_rules
+        from analysis_core import scoring as _scoring
+        from config_setting import DIMENSION_LABELS as _DL, DIMENSION_ORDER
+        enriched = hb_rules.enrich_record(dict(record))
+        all_scores = _scoring.compute_dimension_scores(enriched)
+        fid = 60
+        for d in DIMENSION_ORDER:
+            _dim_score, subs = all_scores.get(d, (0.0, {}))
+            if not subs:
+                continue
+            best_label, best_v = max(subs.items(), key=lambda x: x[1])
+            worst_label, worst_v = min(subs.items(), key=lambda x: x[1])
+            if best_label == worst_label:
+                continue
+            out.append((f"F{fid}", f"二级指标优势项：{_DL[d]}·{best_label} {best_v:.1f} 分"
+                                   f"（本维度最高）"))
+            fid += 1
+            out.append((f"F{fid}", f"二级指标薄弱项：{_DL[d]}·{worst_label} {worst_v:.1f} 分"
+                                   f"（本维度最低）"))
+            fid += 1
+    except Exception:
+        pass
+    return out
+
+
 def build_student_facts(
     record: Dict[str, Any],
     class_means: Optional[Dict[str, float]] = None,
@@ -422,6 +506,7 @@ def build_student_facts(
 
     返回 [{"id": "F01", "text": "..."}, ...]，文本中已不含任何 PII。
     模型只被允许引用卡片中的既有数值，从源头压缩幻觉空间。
+    卡片覆盖：综合 / 六维 / 排名百分位 / 风险信号 / 二级指标强弱项 / 手册提醒。
     """
     from config_setting import DIMENSION_ORDER, DIMENSION_LABELS
 
@@ -443,6 +528,8 @@ def build_student_facts(
                f"风险信号累计 {_f(record.get('risk_score')):.0f} 项")
     if record.get("cluster_type"):
         add("F04", f"成长类型聚类结果为「{record['cluster_type']}」")
+    for fid, text in _rank_facts(record):
+        add(fid, text)
 
     # 六维得分与等级（F10~F15）
     means_src = grade_means or class_means or {}
@@ -473,6 +560,10 @@ def build_student_facts(
     for j, sig in enumerate(signals):
         add(f"F{20 + j}", f"风险信号：{sig}")
 
+    # 二级指标强弱项（F60+，本地计算）
+    for fid, text in _sub_metric_facts(record):
+        add(fid, text)
+
     # 手册命中项（③ 知识锚定：携带规则编号与系统生成的客观话术，无 PII）
     hits = record.get("handbook_hits")
     reminders = record.get("handbook_reminders")
@@ -493,16 +584,50 @@ def build_student_facts(
 
 
 def build_class_facts(agg: Dict[str, Any]) -> List[Dict[str, str]]:
-    """把班级 / 年级聚合统计结构化为事实卡片（F2 研判 / F5 对话用）。"""
+    """把班级 / 年级聚合统计结构化为事实卡片（F2 研判 / F5 对话用）。
+
+    卡片覆盖：样本规模、综合均分、各维均值、最强 / 最弱模块、
+    风险分布、手册规则命中统计（agg 可选携带）。
+    """
     facts: List[Dict[str, str]] = [
         {"id": "F01", "text": f"样本学生 {int(agg.get('student_count', 0))} 人"}
     ]
+    comp = agg.get("composite_mean")
+    if comp is not None:
+        try:
+            facts.append({"id": "F02",
+                          "text": f"综合评分均值 {float(comp):.1f} 分（满分 100）"})
+        except (TypeError, ValueError):
+            pass
     means = agg.get("dimension_means", {}) or {}
     for i, (dim, val) in enumerate(means.items()):
         facts.append({"id": f"F{10 + i}", "text": f"{dim}平均 {float(val):.1f} 分"})
+    # 最强 / 最弱模块：让研判摘要能直接「点名」短板而不是罗列一遍均值
+    if len(means) >= 2:
+        try:
+            ordered = sorted(means.items(), key=lambda kv: float(kv[1]))
+            weak_label, weak_v = ordered[0]
+            strong_label, strong_v = ordered[-1]
+            facts.append({"id": "F20",
+                          "text": f"相对最弱模块：{weak_label}（平均 {float(weak_v):.1f} 分）"})
+            facts.append({"id": "F21",
+                          "text": f"相对最强模块：{strong_label}（平均 {float(strong_v):.1f} 分）"
+                                  f"，与最弱模块相差 {float(strong_v) - float(weak_v):.1f} 分"})
+        except (TypeError, ValueError):
+            pass
     dist = agg.get("risk_distribution", {}) or {}
     dist_text = "、".join(f"{k} {int(v)} 人" for k, v in dist.items()) or "暂无"
     facts.append({"id": "F30", "text": f"风险等级分布：{dist_text}"})
+    total = sum(int(v) for v in dist.values())
+    if total and int(dist.get("高危", 0)) + int(dist.get("关注", 0)) > 0:
+        need = int(dist.get("高危", 0)) + int(dist.get("关注", 0))
+        facts.append({"id": "F31",
+                      "text": f"需重点关注 / 干预的学生合计 {need} 人，"
+                              f"占样本 {need / total * 100:.0f}%"})
+    # 手册规则命中统计（teacher 端聚合时可选携带，key=规则号，value=人数）
+    for k, (rule, cnt) in enumerate((agg.get("rule_hits") or {}).items()):
+        facts.append({"id": f"F{40 + k}",
+                      "text": f"手册规则 {rule} 命中 {int(cnt)} 人"})
     return facts
 
 

@@ -154,7 +154,18 @@ def _wordcloud_png(student_id: str, tags_tuple: tuple, facecolor: str) -> str:
 
 
 def _build_safe_context(student: dict) -> dict:
-    return llm_client.safe_student_profile(student)
+    """构建脱敏对话上下文。
+
+    除网关白名单字段外，额外预置现成事实卡片（卡片本身已无 PII）：
+    网关会裁掉 handbook_reminders 等字段，导致对话时手册类卡片缺失，
+    这里直接把 build_student_facts 的产出挂到 fact_cards 上传给服务层。
+    """
+    ctx = llm_client.safe_student_profile(student)
+    try:
+        ctx["fact_cards"] = llm_client.build_student_facts(student)
+    except Exception:
+        pass
+    return ctx
 
 
 def _get_meta(student: dict, scope: str) -> dict | None:
@@ -929,19 +940,19 @@ def _render_dim_tree(student: dict, dim_key: str, dim_score: float, dim_level: s
 
 
 def _render_dim_ai(student: dict, dim_key: str, dim_score: float, dim_level: str,
-                   dim_scores: dict) -> None:
-    """AI 维度诊断按钮：复用 F3 图表解读链路（事实卡片 + 引用 + 后校验）。
+                   dim_scores: dict, sub_scores: dict) -> None:
+    """AI 维度诊断：走 F3+ 维度专项链路（独立任务指令 + 二级指标卡片 + 引用校验）。
 
     AI 未启用 / 调用失败时回退规则式建议，不报错。
     """
     label = DIMENSION_LABELS[dim_key]
     card = _card(f"AI {label}维度诊断", accent=DIMENSION_COLORS[dim_key])
     with card:
-        st.caption("基于脱敏事实卡片生成，结论附 [Fxx] 引用与证据清单。")
+        st.caption("基于脱敏事实卡片（含本维度全部二级指标）生成，结论附 [Fxx] 引用与证据清单。")
         if st.button("生成 AI 维度诊断", key=f"ai_dim_{dim_key}"):
             with st.spinner(SPINNER_AI):
-                txt, ok = ai.generate_chart_interpret(
-                    student, f"{label}维度画像（得分 {dim_score:.1f}，等级 {dim_level}）")
+                txt, ok = ai.generate_dimension_diagnosis(
+                    student, dim_key, dim_score, dim_level, sub_scores)
             st.session_state[f"ai_dim_text_{dim_key}"] = (txt, ok)
         saved = st.session_state.get(f"ai_dim_text_{dim_key}")
         if saved:
@@ -1043,7 +1054,7 @@ def _render_dimension(student: dict, dim_key: str) -> None:
 
     # 第五行：AI 维度诊断
     _render_dim_ai(student, dim_key, dim_score,
-                   student.get(f"level_{dim_key}") or "—", dim_scores)
+                   student.get(f"level_{dim_key}") or "—", dim_scores, sub_scores)
 
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
@@ -1068,7 +1079,7 @@ def _render_dimension(student: dict, dim_key: str) -> None:
 # AI 助手
 # ---------------------------------------------------------------------------
 def _render_ai(student: dict) -> None:
-    """AI 对话助手。"""
+    """AI 对话助手（多轮：携带近几轮历史，支持追问与指代）。"""
     _ai_status_banner()
     st.markdown(
         f'<div style="font-size:18px;font-weight:700;color:{THEME_TEXT};margin-bottom:4px;">'
@@ -1083,7 +1094,7 @@ def _render_ai(student: dict) -> None:
         f'🔒 数据经脱敏网关处理后发送，原始数据不出本机。</div>',
         unsafe_allow_html=True,
     )
-    st.caption("仅基于你的脱敏数据作答，不泄露个人信息。")
+    st.caption("仅基于你的脱敏数据作答，不泄露个人信息；支持追问（如「那第二呢」「为什么」）。")
     if "stu_chat" not in st.session_state:
         st.session_state.stu_chat = []
     for msg in st.session_state.stu_chat:
@@ -1092,15 +1103,34 @@ def _render_ai(student: dict) -> None:
                 _render_ai_text(msg["content"])
             else:
                 st.write(msg["content"])
-    q = st.chat_input("向 AI 提问，例如：我哪方面最该加强？")
+
+    # 首轮提供可点选的示例问题，降低「不知道问什么 / 问不出智能感」的门槛
+    suggestions = ["我哪个维度最需要提升？为什么？",
+                   "给我一份未来一个月的提升计划",
+                   "我的综合评分在年级处于什么水平？"]
+    suggested = None
+    if not st.session_state.stu_chat:
+        st.caption("试试这样问：")
+        s_cols = st.columns(3)
+        for sc, s_text in zip(s_cols, suggestions):
+            if sc.button(s_text, key=f"sug_{abs(hash(s_text)) % 10_000}"):
+                suggested = s_text
+
+    q = st.chat_input("向 AI 提问，例如：我哪方面最该加强？") or suggested
     if q:
         st.session_state.stu_chat.append({"role": "user", "content": q})
         with st.chat_message("user"):
             st.write(q)
         ctx = _build_safe_context(student)
+        # 传近几轮历史（服务层会剥离证据脚注并截断），让 AI 能理解追问
+        history = [
+            {"role": m["role"], "content": m["content"]}
+            for m in st.session_state.stu_chat[:-1]
+            if m["role"] in ("user", "assistant")
+        ]
         with st.chat_message("assistant"):
             with st.spinner(SPINNER_AI):
-                txt, ok = ai.chat_answer(q, ctx)
+                txt, ok = ai.chat_answer(q, ctx, history=history)
             _render_ai_text(txt)
         st.session_state.stu_chat.append({"role": "assistant", "content": txt})
 

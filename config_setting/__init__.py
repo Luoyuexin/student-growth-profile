@@ -128,15 +128,15 @@ DIMENSION_LABELS: Dict[str, str] = {
 # 拿破仑黄做主强调色，配暖米白底 + 深褐文字，避免大面积高饱和铺色，
 # 保持商务质感的同时有明确的品牌辨识度。
 # ---------------------------------------------------------------------------
-THEME_PRIMARY = "#E3B23C"          # 拿破仑黄：主强调色、按钮边框、图表主色
-THEME_PRIMARY_DARK = "#9A7016"     # 深金棕：hover / 重要文字（黄底文字需压深才够对比）
-THEME_PRIMARY_LIGHT = "#FBF1D6"    # 浅香槟：hover 背景、标签底、进度条轨道
-THEME_BG = "#FBF6EA"               # 页面背景：暖米白（比卡片略深，衬出白卡片）
-THEME_CARD_BG = "#FFFFFF"          # 卡片背景：纯白
-THEME_CARD_BORDER = "#EDE1C4"      # 卡片边框：浅金边
+THEME_PRIMARY = "#7393B3"          # 拿破仑黄：主强调色、按钮边框、图表主色
+THEME_PRIMARY_DARK = "#002FA7"     # 深金棕：hover / 重要文字（黄底文字需压深才够对比）
+THEME_PRIMARY_LIGHT = "#90B8D6"    # 浅香槟：hover 背景、标签底、进度条轨道
+THEME_BG = "#C9F4FF"               # 页面背景：暖米白（比卡片略深，衬出白卡片）
+THEME_CARD_BG = "#E6F6FF"          # 卡片背景：纯白
+THEME_CARD_BORDER = "#78AACC"      # 卡片边框：浅金边
 THEME_TEXT = "#2E2A22"             # 主文字：暖炭黑
 THEME_TEXT_SUB = "#726758"         # 次要文字：暖灰
-THEME_GRID = "#F2E9D2"             # 图表网格：浅金
+THEME_GRID = "#A4D5F0"             # 图表网格：浅金
 THEME_GRADIENT = f"linear-gradient(135deg, {THEME_PRIMARY} 0%, #F0C75E 55%, {THEME_PRIMARY_DARK} 100%)"
 THEME_SHADOW = "0 2px 10px rgba(154,112,22,0.07)"
 
