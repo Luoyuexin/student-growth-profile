@@ -10,8 +10,8 @@ gatherUsageStats = false
 # 拿破仑黄主题：让原生控件（单选圆点 / 复选 / 滑块 / spinner）与企业色一致。
 # 否则 Streamlit 默认的 #FF4B4B 红色会和暖金主题打架。
 [theme]
-primaryColor = "#E3B23C"
-backgroundColor = "#FBF6EA"
-secondaryBackgroundColor = "#FFFCF5"
-textColor = "#2E2A22"
+primaryColor = "#5B82B8"
+backgroundColor = "#F8FBFE"
+secondaryBackgroundColor = "#EAF2FC"
+textColor = "#1C2C66"
 font = "sans serif"

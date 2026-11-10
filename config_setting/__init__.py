@@ -128,42 +128,42 @@ DIMENSION_LABELS: Dict[str, str] = {
 # 拿破仑黄做主强调色，配暖米白底 + 深褐文字，避免大面积高饱和铺色，
 # 保持商务质感的同时有明确的品牌辨识度。
 # ---------------------------------------------------------------------------
-THEME_PRIMARY = "#7393B3"          # 拿破仑黄：主强调色、按钮边框、图表主色
-THEME_PRIMARY_DARK = "#002FA7"     # 深金棕：hover / 重要文字（黄底文字需压深才够对比）
-THEME_PRIMARY_LIGHT = "#90B8D6"    # 浅香槟：hover 背景、标签底、进度条轨道
-THEME_BG = "#C9F4FF"               # 页面背景：暖米白（比卡片略深，衬出白卡片）
-THEME_CARD_BG = "#E6F6FF"          # 卡片背景：纯白
-THEME_CARD_BORDER = "#78AACC"      # 卡片边框：浅金边
-THEME_TEXT = "#2E2A22"             # 主文字：暖炭黑
-THEME_TEXT_SUB = "#726758"         # 次要文字：暖灰
-THEME_GRID = "#A4D5F0"             # 图表网格：浅金
-THEME_GRADIENT = f"linear-gradient(135deg, {THEME_PRIMARY} 0%, #F0C75E 55%, {THEME_PRIMARY_DARK} 100%)"
-THEME_SHADOW = "0 2px 10px rgba(154,112,22,0.07)"
+THEME_PRIMARY = "#5B82B8"          # 拿破仑黄：主强调色、按钮边框、图表主色
+THEME_PRIMARY_DARK = "#1E4171"     # 深金棕：hover / 重要文字（黄底文字需压深才够对比）
+THEME_PRIMARY_LIGHT = "#CCE1FF"    # 浅香槟：hover 背景、标签底、进度条轨道
+THEME_BG = "#F8FBFE"               # 页面背景：暖米白（比卡片略深，衬出白卡片）
+THEME_CARD_BG = "#FFFFFF"          # 卡片背景：纯白
+THEME_CARD_BORDER = "#C9DCEF"      # 卡片边框：浅金边
+THEME_TEXT = "#1C2C66"             # 主文字：暖炭黑
+THEME_TEXT_SUB = "#5A6F8C"         # 次要文字：暖灰
+THEME_GRID = "#E6EEF8"             # 图表网格：浅金
+THEME_GRADIENT = f"linear-gradient(135deg, {THEME_PRIMARY} 0%, #4C79B8 55%, {THEME_PRIMARY_DARK} 100%)"
+THEME_SHADOW = "0 2px 10px rgba(30,65,113,0.08)"
 
 # 柔和风险色（用于背景色块 + 文字，避免 bright 红绿橙）
-RISK_SOFT_BG = {"正常": "#E8F5E9", "关注": "#FFF3E0", "高危": "#FFEBEE"}
-RISK_SOFT_BORDER = {"正常": "#A5D6A7", "关注": "#FFCC80", "高危": "#EF9A9A"}
-RISK_SOFT_TEXT = {"正常": "#2E7D32", "关注": "#EF6C00", "高危": "#C62828"}
+RISK_SOFT_BG = {"正常": "#E9F3F6", "关注": "#FFF4E8", "高危": "#FDEDF0"}
+RISK_SOFT_BORDER = {"正常": "#A9CFD8", "关注": "#F0CDA0", "高危": "#EFB8C2"}
+RISK_SOFT_TEXT = {"正常": "#2C6E7E", "关注": "#B26A22", "高危": "#B04A5A"}
 
 # 等级色板（待改进 / 合格 / 良好 / 优秀 四色，用于等级卡着色与状态标签）
-LEVEL_SOFT_BG = {"待改进": "#FFEBEE", "合格": "#FFF3E0", "良好": "#F1F8E9", "优秀": "#E8F5E9"}
-LEVEL_SOFT_BORDER = {"待改进": "#EF9A9A", "合格": "#FFCC80", "良好": "#C5E1A5", "优秀": "#A5D6A7"}
-LEVEL_SOFT_TEXT = {"待改进": "#C62828", "合格": "#EF6C00", "良好": "#558B2F", "优秀": "#2E7D32"}
+LEVEL_SOFT_BG = {"待改进": "#FDEDF0", "合格": "#FFF4E8", "良好": "#EDF5FA", "优秀": "#E9F3F6"}
+LEVEL_SOFT_BORDER = {"待改进": "#EFB8C2", "合格": "#F0CDA0", "良好": "#B9D3E6", "优秀": "#A9CFD8"}
+LEVEL_SOFT_TEXT = {"待改进": "#B04A5A", "合格": "#B26A22", "良好": "#3C7391", "优秀": "#2C6E7E"}
 
 # 中性占位色（未知等级 / 兜底标签）
-NEUTRAL_BG = "#F5F5F5"
-NEUTRAL_BORDER = "#E0E0E0"
+NEUTRAL_BG = "#F2F6FB"
+NEUTRAL_BORDER = "#DCE6F2"
 
 # 维度品牌色（用于雷达图、教师端分组柱图、饼图等，保持全站一致）
 # 以拿破仑黄为轴心展开的协调配色：金黄→橄榄→赭橙→雅紫→灰蓝，
 # 六色在暖调基底上互相可分辨，避免交通灯高饱和色。
 DIMENSION_COLORS: Dict[str, str] = {
-    "study": "#C9971F",      # 金（主色系）
-    "health": "#5E8C7A",     # 青绿
-    "social": "#C97F3C",     # 赭橙
-    "life": "#9B7B45",       # 棕金
-    "morality": "#8E6F9E",   # 雅紫
-    "non_cog": "#5A7EA6",    # 灰蓝
+    "study": "#2F6FB5",      # 金（主色系）
+    "health": "#4E9AA8",     # 青绿
+    "social": "#6E86C9",     # 赭橙
+    "life": "#7BA7D0",       # 棕金
+    "morality": "#8E86BE",   # 雅紫
+    "non_cog": "#4F7FA8",    # 灰蓝
 }
 
 # 维度展示顺序（用于雷达图 / 顶栏 / 分析树）
@@ -172,39 +172,39 @@ DIMENSION_ORDER: List[str] = ["study", "health", "social", "life", "morality", "
 # ---------------------------------------------------------------------------
 # 图表专用色板（Plotly / Matplotlib / PDF 统一从这里取色，页面代码不硬编码色值）
 # ---------------------------------------------------------------------------
-CHART_SECONDARY = "#6E8F6A"      # 橄榄绿（辅助系列色）
-CHART_ACCENT = "#C97F3C"         # 赭橙（辅助系列色）
-CHART_NEUTRAL = "#B5A98F"        # 中性暖灰（兜底 / 均值参考）
+CHART_SECONDARY = "#4E88A8"      # 橄榄绿（辅助系列色）
+CHART_ACCENT = "#7A7FC0"         # 赭橙（辅助系列色）
+CHART_NEUTRAL = "#9BAEC4"        # 中性暖灰（兜底 / 均值参考）
 
 # 风险等级的图表用色（低饱和，与柔和色块区分开：图表填充需要更高对比）
-RISK_CHART_COLORS = {"正常": "#6E8F6A", "关注": "#D9883A", "高危": "#C05B4D"}
+RISK_CHART_COLORS = {"正常": "#4E8C9E", "关注": "#D29A5B", "高危": "#C17078"}
 
 # 连续得分色阶（浅=低分，深=高分）：浅香槟 → 拿破仑黄 → 深金棕
 SCORE_COLORSCALE = [
-    [0.0, "#FBF1D6"],   # 浅香槟
-    [0.5, "#E3B23C"],   # 拿破仑黄
-    [1.0, "#8A6410"],   # 深金棕
+    [0.0, "#EAF2FC"],   # 浅香槟
+    [0.5, "#6E97C9"],   # 拿破仑黄
+    [1.0, "#1E4171"],   # 深金棕
 ]
 
 # 词云配色：暖金 / 赭橙 / 橄榄 / 雅紫 / 灰蓝，低饱和；按字号三档取色
 WORDCLOUD_PALETTE = [
-    "#C9971F", "#8A6410", "#B9A24B", "#E3B23C",
-    "#C97F3C", "#A8683A", "#6E8F6A", "#8A9A6B",
-    "#8E6F9E", "#5F8A9C",
+    "#1E4171", "#2F5FA0", "#4C79B8", "#6E97C9",
+    "#7BA7D0", "#4E88A8", "#6E86C9", "#8E86BE",
+    "#5A6F8C", "#9BAEC4",
 ]
-WORDCLOUD_DEEP_POOL = ["#8A6410", "#6E5010", "#A8683A", "#7A5E86"]   # 大字号
-WORDCLOUD_MID_POOL = ["#C9971F", "#C97F3C", "#8A9A6B", "#8E6F9E"]    # 中字号
+WORDCLOUD_DEEP_POOL = ["#1E4171", "#203F77", "#2F5FA0", "#4A4E86"]   # 大字号
+WORDCLOUD_MID_POOL = ["#4C79B8", "#4E88A8", "#6E86C9", "#7BA7D0"]    # 中字号
 
 # 雷达图：个人能力填充 + 均值参考线配色（半透明填充叠加用）
-RADAR_SELF_FILL = "rgba(227,178,60,0.26)"
-RADAR_REF_COLORS = ["#B5A98F", "#A8683A", "#6E8F6A"]
+RADAR_SELF_FILL = "rgba(91,130,184,0.26)"
+RADAR_REF_COLORS = ["#9BAEC4", "#4E88A8", "#6E86C9"]
 RADAR_REF_FILL_OPACITY = 0.15    # 参考面叠加不透明度（要求区间 0.12~0.18）
 
 # 成长趋势图面积填充
-TREND_FILL = "rgba(227,178,60,0.14)"
+TREND_FILL = "rgba(91,130,184,0.14)"
 
 # PDF 表格隔行底色
-TABLE_ROW_ALT = "#FBF7EC"
+TABLE_ROW_ALT = "#F4F8FD"
 
 # ---------------------------------------------------------------------------
 # 全站统一 CSS（拿破仑黄主题）
@@ -230,7 +230,7 @@ def build_theme_css() -> str:
         position: fixed; inset: 0;
         pointer-events: none;
         background: radial-gradient(1000px 380px at 8% -14%,
-                    rgba(227,178,60,0.16) 0%, rgba(227,178,60,0) 70%);
+                    rgba(91,130,184,0.16) 0%, rgba(91,130,184,0) 70%);
         z-index: 0;
     }}
     .stApp::after {{
@@ -288,7 +288,7 @@ def build_theme_css() -> str:
     .stTabs [aria-selected="true"] {{
         color: {THEME_PRIMARY_DARK} !important;
         border-bottom: 3px solid {THEME_PRIMARY} !important;
-        background: linear-gradient(180deg, rgba(251,241,214,0) 0%,
+        background: linear-gradient(180deg, rgba(204,225,255,0) 0%,
                     {THEME_PRIMARY_LIGHT} 100%) !important;
     }}
     .stTabs [data-testid="stTab"][aria-selected="true"] p {{
@@ -321,31 +321,31 @@ def build_theme_css() -> str:
         background-color: {THEME_PRIMARY_LIGHT} !important;
         color: {THEME_PRIMARY_DARK} !important;
         transform: translateY(-1px);
-        box-shadow: 0 3px 12px rgba(154,112,22,0.16);
+        box-shadow: 0 3px 12px rgba(30,65,113,0.16);
     }}
     .stButton>button[kind="primary"], .stFormSubmitButton>button[kind="primary"],
     .stDownloadButton>button {{
         background: {THEME_GRADIENT} !important;
-        color: #3A2A05 !important;
+        color: #FFFFFF !important;
         border: none !important;
         border-radius: 10px !important;
         font-weight: 700;
-        box-shadow: 0 3px 12px rgba(227,178,60,0.28);
+        box-shadow: 0 3px 12px rgba(91,130,184,0.28);
     }}
     .stButton>button[kind="primary"]:hover, .stFormSubmitButton>button[kind="primary"]:hover,
     .stDownloadButton>button:hover {{
         filter: brightness(1.05);
-        box-shadow: 0 5px 18px rgba(227,178,60,0.4);
+        box-shadow: 0 5px 18px rgba(91,130,184,0.4);
     }}
 
     /* ---------- 输入控件：聚焦描金 ---------- */
     .stTextInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {{
         border-color: {THEME_PRIMARY} !important;
-        box-shadow: 0 0 0 2px rgba(227,178,60,0.22) !important;
+        box-shadow: 0 0 0 2px rgba(91,130,184,0.22) !important;
     }}
     div[data-testid="stChatInput"]:focus-within {{
         border-color: {THEME_PRIMARY} !important;
-        box-shadow: 0 0 0 2px rgba(227,178,60,0.18) !important;
+        box-shadow: 0 0 0 2px rgba(91,130,184,0.18) !important;
     }}
 
     /* ---------- 折叠面板 / 进度条 / 指标 ---------- */

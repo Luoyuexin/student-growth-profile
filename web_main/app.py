@@ -107,7 +107,7 @@ def _inject_login_css() -> None:
         background: {THEME_CARD_BG} !important;
         color: {THEME_TEXT_SUB} !important;
         font-size: 16px !important;
-        box-shadow: 0 1px 4px rgba(154,112,22,0.05);
+        box-shadow: 0 1px 4px rgba(30,65,113,0.06);
     }}
     .stTabs [data-testid="stTab"]:hover, .stTabs [data-baseweb="tab"]:hover {{
         border-color: {THEME_PRIMARY} !important;
@@ -117,10 +117,10 @@ def _inject_login_css() -> None:
     .stTabs [data-testid="stTab"][aria-selected="true"], .stTabs [aria-selected="true"] {{
         border: 1px solid {THEME_PRIMARY} !important;
         background: {THEME_GRADIENT} !important;
-        color: #3A2A05 !important;
-        box-shadow: 0 4px 14px rgba(227,178,60,0.30);
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 14px rgba(91,130,184,0.30);
     }}
-    .stTabs [data-testid="stTab"][aria-selected="true"] p {{ color: #3A2A05 !important; }}
+    .stTabs [data-testid="stTab"][aria-selected="true"] p {{ color: #FFFFFF !important; }}
     </style>
     """, unsafe_allow_html=True)
 
