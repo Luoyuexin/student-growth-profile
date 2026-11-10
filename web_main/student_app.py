@@ -25,18 +25,16 @@ from analysis_core import pipeline as analysis_pipeline
 from analysis_core import scoring
 from analysis_core import kmeans_model
 from analysis_core import handbook_rules as hb_rules
+import config_setting as C
 from config_setting import (
-    DIMENSION_ORDER, DIMENSION_LABELS, DIMENSION_COLORS, DIMENSION_WEIGHTS,
+    DIMENSION_ORDER,
+    DIMENSION_LABELS,
+    DIMENSION_WEIGHTS,
     DIMENSION_SUBSCORES,
     SECOND_CLASSROOM_PART_DIM,
-    THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_PRIMARY_LIGHT,
-    THEME_BG, THEME_CARD_BG, THEME_CARD_BORDER, THEME_TEXT, THEME_TEXT_SUB,
-    RISK_SOFT_BG, RISK_SOFT_BORDER, RISK_SOFT_TEXT,
-    LEVEL_SOFT_BG, LEVEL_SOFT_BORDER, LEVEL_SOFT_TEXT,
-    NEUTRAL_BG, NEUTRAL_BORDER,
     HANDBOOK_RULES,
     SPINNER_AI,
-    build_theme_css,
+    build_theme_css
 )
 from ai_insight import services as ai, llm_client
 
@@ -55,13 +53,14 @@ def _inject_theme_css() -> None:
     st.markdown(build_theme_css(), unsafe_allow_html=True)
 
 
-def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_generator.DeltaGenerator:
+def _card(title: str | None = None, accent: str | None = None) -> st.delta_generator.DeltaGenerator:
     """返回一个带边框圆角的容器（Streamlit container border）。"""
+    accent = accent or C.THEME_PRIMARY
     c = st.container(border=True)
     if title:
         with c:
             st.markdown(
-                f'<div style="font-size:15px;font-weight:600;color:{THEME_TEXT};'
+                f'<div style="font-size:15px;font-weight:600;color:{C.THEME_TEXT};'
                 f'margin-bottom:14px;border-left:4px solid {accent};padding-left:10px;">'
                 f'{title}</div>',
                 unsafe_allow_html=True,
@@ -70,16 +69,17 @@ def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_gen
 
 
 def _metric_card(title: str, value: str, subtitle: str | None = None,
-                 accent: str = THEME_PRIMARY) -> str:
+                 accent: str | None = None) -> str:
     """生成自定义指标卡 HTML。"""
+    accent = accent or C.THEME_PRIMARY
     sub_html = (
-        f'<div style="font-size:12px;color:{THEME_TEXT_SUB};margin-top:4px;">{subtitle}</div>'
+        f'<div style="font-size:12px;color:{C.THEME_TEXT_SUB};margin-top:4px;">{subtitle}</div>'
         if subtitle else ""
     )
     return (
-        f'<div style="background:{THEME_CARD_BG};border:1px solid {THEME_CARD_BORDER};'
+        f'<div style="background:{C.THEME_CARD_BG};border:1px solid {C.THEME_CARD_BORDER};'
         f'border-radius:12px;padding:18px;text-align:center;">'
-        f'<div style="font-size:13px;color:{THEME_TEXT_SUB};margin-bottom:6px;">{title}</div>'
+        f'<div style="font-size:13px;color:{C.THEME_TEXT_SUB};margin-bottom:6px;">{title}</div>'
         f'<div style="font-size:32px;font-weight:700;color:{accent};">{value}</div>'
         f'{sub_html}</div>'
     )
@@ -91,10 +91,10 @@ def _progress_bar(label: str, value: float, color: str) -> str:
     return (
         f'<div style="margin-bottom:14px;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
-        f'<span style="font-size:14px;color:{THEME_TEXT};font-weight:500;">{label}</span>'
-        f'<span style="font-size:14px;color:{THEME_TEXT_SUB};font-weight:600;">{pct:.1f} 分</span>'
+        f'<span style="font-size:14px;color:{C.THEME_TEXT};font-weight:500;">{label}</span>'
+        f'<span style="font-size:14px;color:{C.THEME_TEXT_SUB};font-weight:600;">{pct:.1f} 分</span>'
         f'</div>'
-        f'<div style="width:100%;height:10px;background:{THEME_PRIMARY_LIGHT};border-radius:5px;overflow:hidden;">'
+        f'<div style="width:100%;height:10px;background:{C.THEME_PRIMARY_LIGHT};border-radius:5px;overflow:hidden;">'
         f'<div style="width:{pct}%;height:100%;background:{color};border-radius:5px;"></div>'
         f'</div></div>'
     )
@@ -102,10 +102,10 @@ def _progress_bar(label: str, value: float, color: str) -> str:
 
 def _status_pill(label: str, level: str) -> str:
     """生成柔和色块的维度等级标签（统一使用等级口径：待改进/合格/良好/优秀）。"""
-    shown = level if level in LEVEL_SOFT_TEXT else "未定级"
-    bg = LEVEL_SOFT_BG.get(level, NEUTRAL_BG)
-    border = LEVEL_SOFT_BORDER.get(level, NEUTRAL_BORDER)
-    text = LEVEL_SOFT_TEXT.get(level, THEME_TEXT_SUB)
+    shown = level if level in C.LEVEL_SOFT_TEXT else "未定级"
+    bg = C.LEVEL_SOFT_BG.get(level, C.NEUTRAL_BG)
+    border = C.LEVEL_SOFT_BORDER.get(level, C.NEUTRAL_BORDER)
+    text = C.LEVEL_SOFT_TEXT.get(level, C.THEME_TEXT_SUB)
     return (
         f'<div style="display:inline-block;background:{bg};border:1px solid {border};'
         f'border-radius:20px;padding:5px 14px;color:{text};font-size:13px;font-weight:500;">'
@@ -122,8 +122,8 @@ _CITATION_TAG_RE = re.compile(
 def _render_ai_text(txt: str) -> None:
     """渲染 AI 输出：[Fxx] 证据标签做高亮样式。"""
     html = _CITATION_TAG_RE.sub(
-        rf'<span style="background:{THEME_PRIMARY_LIGHT};color:{THEME_PRIMARY_DARK};'
-        rf'border:1px solid {THEME_CARD_BORDER};border-radius:4px;padding:0 5px;'
+        rf'<span style="background:{C.THEME_PRIMARY_LIGHT};color:{C.THEME_PRIMARY_DARK};'
+        rf'border:1px solid {C.THEME_CARD_BORDER};border-radius:4px;padding:0 5px;'
         rf'font-size:12px;font-weight:600;">[\1]</span>',
         txt,
     )
@@ -319,19 +319,19 @@ def _render_weight_bar() -> None:
         pct = weight * 100
         title = f"{DIMENSION_LABELS[d]} · 权重 {pct:.0f}% · {n_sub} 项二级指标"
         segments.append(
-            f'<div title="{title}" style="width:{pct}%;background:{DIMENSION_COLORS[d]};'
+            f'<div title="{title}" style="width:{pct}%;background:{C.DIMENSION_COLORS[d]};'
             f'height:34px;display:flex;align-items:center;justify-content:center;'
-            f'color:{THEME_CARD_BG};font-size:11px;font-weight:600;cursor:default;'
+            f'color:{C.THEME_CARD_BG};font-size:11px;font-weight:600;cursor:default;'
             f'overflow:hidden;white-space:nowrap;">'
             f'{DIMENSION_LABELS[d][:2]} {pct:.0f}%</div>'
         )
     st.markdown(
         f'<div style="display:flex;justify-content:space-between;align-items:center;'
         f'margin:2px 0 4px;">'
-        f'<span style="font-size:13px;color:{THEME_TEXT_SUB};">六维权重构成（悬停查看各维度二级指标数）</span>'
+        f'<span style="font-size:13px;color:{C.THEME_TEXT_SUB};">六维权重构成（悬停查看各维度二级指标数）</span>'
         f'</div>'
         f'<div style="display:flex;width:100%;border-radius:8px;overflow:hidden;'
-        f'border:1px solid {THEME_CARD_BORDER};">{"".join(segments)}</div>',
+        f'border:1px solid {C.THEME_CARD_BORDER};">{"".join(segments)}</div>',
         unsafe_allow_html=True,
     )
 
@@ -376,13 +376,13 @@ def _render_reminders(student: dict) -> None:
     已达标项不逐条罗列（避免页面变成手册条文清单）。
     """
     items = _load_json(student.get("handbook_reminders"), [])
-    card = _card("智能提醒 · 依据本科生手册硬性规定", accent=THEME_PRIMARY)
+    card = _card("智能提醒 · 依据本科生手册硬性规定", accent=C.THEME_PRIMARY)
     with card:
         st.caption("依据《2024 级本科生手册》12 条可编程条款自动生成")
         if not items:
             st.markdown(
-                f'<div style="background:{RISK_SOFT_BG["正常"]};border:1px solid {RISK_SOFT_BORDER["正常"]};'
-                f'border-radius:10px;padding:12px 16px;color:{RISK_SOFT_TEXT["正常"]};font-size:14px;">'
+                f'<div style="background:{C.RISK_SOFT_BG["正常"]};border:1px solid {C.RISK_SOFT_BORDER["正常"]};'
+                f'border-radius:10px;padding:12px 16px;color:{C.RISK_SOFT_TEXT["正常"]};font-size:14px;">'
                 f'✅ 本学期暂无需要提醒的事项，保持当前节奏即可。</div>',
                 unsafe_allow_html=True,
             )
@@ -393,19 +393,19 @@ def _render_reminders(student: dict) -> None:
             rule_cfg = HANDBOOK_RULES.get(rule, {})
             rule_name = rule_cfg.get("name", "")
             if it.get("type") == "鼓励":
-                bg, bd, tx, icon = (RISK_SOFT_BG["正常"], RISK_SOFT_BORDER["正常"],
-                                    RISK_SOFT_TEXT["正常"], "👍")
+                bg, bd, tx, icon = (C.RISK_SOFT_BG["正常"], C.RISK_SOFT_BORDER["正常"],
+                                    C.RISK_SOFT_TEXT["正常"], "👍")
             else:
-                bg, bd, tx, icon = (RISK_SOFT_BG["关注"], RISK_SOFT_BORDER["关注"],
-                                    RISK_SOFT_TEXT["关注"], "🔔")
+                bg, bd, tx, icon = (C.RISK_SOFT_BG["关注"], C.RISK_SOFT_BORDER["关注"],
+                                    C.RISK_SOFT_TEXT["关注"], "🔔")
             st.markdown(
                 f'<div style="background:{bg};border-left:3px solid {bd};'
                 f'border-radius:6px;padding:10px 12px;margin-bottom:4px;">'
                 f'<div style="margin-bottom:4px;">'
-                f'<span style="display:inline-block;background:{THEME_PRIMARY_LIGHT};'
-                f'border:1px solid {THEME_PRIMARY};border-radius:4px;padding:0 8px;'
-                f'color:{THEME_PRIMARY_DARK};font-size:12px;font-weight:700;">{rule}</span>'
-                f'<span style="font-size:12px;color:{THEME_TEXT_SUB};margin-left:6px;">'
+                f'<span style="display:inline-block;background:{C.THEME_PRIMARY_LIGHT};'
+                f'border:1px solid {C.THEME_PRIMARY};border-radius:4px;padding:0 8px;'
+                f'color:{C.THEME_PRIMARY_DARK};font-size:12px;font-weight:700;">{rule}</span>'
+                f'<span style="font-size:12px;color:{C.THEME_TEXT_SUB};margin-left:6px;">'
                 f'{icon} {rule_name}</span></div>'
                 f'<div style="font-size:14px;color:{tx};">{it.get("text", "")}</div></div>',
                 unsafe_allow_html=True,
@@ -414,7 +414,7 @@ def _render_reminders(student: dict) -> None:
                 # 面向用户的手册条款可读文案；规则未配置 user_clause 时回退 desc
                 clause = rule_cfg.get("user_clause") or rule_cfg.get("desc", "")
                 st.markdown(
-                    f'<div style="font-size:14px;color:{THEME_TEXT};line-height:1.7;">'
+                    f'<div style="font-size:14px;color:{C.THEME_TEXT};line-height:1.7;">'
                     f'{clause}</div>',
                     unsafe_allow_html=True,
                 )
@@ -425,15 +425,15 @@ def _render_reminders(student: dict) -> None:
 def _render_second_classroom(student: dict) -> None:
     """第二课堂成绩单：五部分计分（满分 600），donut 环形图呈现。"""
     res = hb_rules.score_second_classroom(student)
-    card = _card("第二课堂成绩单 · 五部分计分", accent=THEME_PRIMARY)
+    card = _card("第二课堂成绩单 · 五部分计分", accent=C.THEME_PRIMARY)
     with card:
         st.caption("计分依据：手册第二部分「第二课堂成绩单」明文规则")
         d1, d2 = st.columns([3, 2])
         with d1:
             # 五段 = 五部分，各段用对应维度主题色（德/智/体/美/劳），中心显示总分/600
             part_colors = {
-                name: DIMENSION_COLORS.get(SECOND_CLASSROOM_PART_DIM.get(name, ""),
-                                           THEME_PRIMARY)
+                name: C.DIMENSION_COLORS.get(SECOND_CLASSROOM_PART_DIM.get(name, ""),
+                                           C.THEME_PRIMARY)
                 for name in res["五部分"]
             }
             st.plotly_chart(
@@ -447,15 +447,15 @@ def _render_second_classroom(student: dict) -> None:
             rows = []
             for name, val in res["五部分"].items():
                 cap = res["上限"][name]
-                dot_color = DIMENSION_COLORS.get(
-                    SECOND_CLASSROOM_PART_DIM.get(name, ""), THEME_PRIMARY)
+                dot_color = C.DIMENSION_COLORS.get(
+                    SECOND_CLASSROOM_PART_DIM.get(name, ""), C.THEME_PRIMARY)
                 rows.append(
                     f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                    f'padding:7px 2px;border-bottom:1px solid {THEME_PRIMARY_LIGHT};font-size:13px;">'
-                    f'<span style="color:{THEME_TEXT};">'
+                    f'padding:7px 2px;border-bottom:1px solid {C.THEME_PRIMARY_LIGHT};font-size:13px;">'
+                    f'<span style="color:{C.THEME_TEXT};">'
                     f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
                     f'background:{dot_color};margin-right:8px;"></span>{name}</span>'
-                    f'<span style="color:{THEME_TEXT_SUB};font-weight:600;">'
+                    f'<span style="color:{C.THEME_TEXT_SUB};font-weight:600;">'
                     f'{val:.0f} / {cap:.0f} 分</span></div>'
                 )
             st.markdown("".join(rows), unsafe_allow_html=True)
@@ -481,17 +481,17 @@ def _render_overview(student: dict) -> None:
     h1, h2 = st.columns([3, 1])
     with h1:
         st.markdown(
-            f'<div style="font-size:22px;font-weight:700;color:{THEME_TEXT};">'
+            f'<div style="font-size:22px;font-weight:700;color:{C.THEME_TEXT};">'
             f'学生个人成长画像</div>',
             unsafe_allow_html=True,
         )
     with h2:
         st.markdown(
-            f'<div style="background:{THEME_CARD_BG};border:1px solid {THEME_CARD_BORDER};'
+            f'<div style="background:{C.THEME_CARD_BG};border:1px solid {C.THEME_CARD_BORDER};'
             f'border-radius:10px;padding:10px 14px;text-align:right;">'
-            f'<div style="font-size:12px;color:{THEME_TEXT_SUB};">'
+            f'<div style="font-size:12px;color:{C.THEME_TEXT_SUB};">'
             f'{student.get("class_name")}</div>'
-            f'<div style="font-size:13px;color:{THEME_TEXT};font-weight:500;">'
+            f'<div style="font-size:13px;color:{C.THEME_TEXT};font-weight:500;">'
             f'{student.get("name")} · {student.get("student_id")}</div></div>',
             unsafe_allow_html=True,
         )
@@ -507,7 +507,7 @@ def _render_overview(student: dict) -> None:
         st.markdown(_metric_card("综合评分", f"{composite:.1f}", "满分 100"), unsafe_allow_html=True)
     with m2:
         # 综合等级卡按等级着色（待改进/合格/良好/优秀 四色，色板见 config_setting）
-        level_accent = LEVEL_SOFT_TEXT.get(overall_level, THEME_PRIMARY_DARK)
+        level_accent = C.LEVEL_SOFT_TEXT.get(overall_level, C.THEME_PRIMARY_DARK)
         st.markdown(
             _metric_card("综合等级", overall_level,
                          "年级内分布驱动的客观定级", accent=level_accent),
@@ -516,11 +516,11 @@ def _render_overview(student: dict) -> None:
     with m3:
         st.markdown(
             _metric_card("成长类型", cluster_type,
-                         "由六维画像聚类自动命名", accent=THEME_PRIMARY),
+                         "由六维画像聚类自动命名", accent=C.THEME_PRIMARY),
             unsafe_allow_html=True,
         )
     with m4:
-        level_color = RISK_SOFT_TEXT.get(level, THEME_TEXT_SUB)
+        level_color = C.RISK_SOFT_TEXT.get(level, C.THEME_TEXT_SUB)
         st.markdown(
             _metric_card("风险等级", level, "基于多源风险指标综合判定", accent=level_color),
             unsafe_allow_html=True,
@@ -539,16 +539,16 @@ def _render_overview(student: dict) -> None:
             pct = max(0.0, min(100.0, composite / boundary * 100.0))
             bar_html = (
                 f'<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">'
-                f'<div style="flex:1;height:8px;background:{THEME_PRIMARY_LIGHT};'
+                f'<div style="flex:1;height:8px;background:{C.THEME_PRIMARY_LIGHT};'
                 f'border-radius:4px;overflow:hidden;">'
-                f'<div style="width:{pct:.1f}%;height:100%;background:{THEME_PRIMARY};'
+                f'<div style="width:{pct:.1f}%;height:100%;background:{C.THEME_PRIMARY};'
                 f'border-radius:4px;"></div></div>'
-                f'<span style="font-size:12px;color:{THEME_TEXT_SUB};white-space:nowrap;">'
+                f'<span style="font-size:12px;color:{C.THEME_TEXT_SUB};white-space:nowrap;">'
                 f'{composite:.1f} → {boundary:.1f} 分</span></div>'
             )
         st.markdown(
-            f'<div style="margin:6px 0 10px;font-size:13px;color:{THEME_TEXT_SUB};">'
-            f'📈 距上一综合等级还差 <b style="color:{THEME_PRIMARY_DARK};">{gap:.1f}</b> 分，'
+            f'<div style="margin:6px 0 10px;font-size:13px;color:{C.THEME_TEXT_SUB};">'
+            f'📈 距上一综合等级还差 <b style="color:{C.THEME_PRIMARY_DARK};">{gap:.1f}</b> 分，'
             f'可参考下方个性化建议针对性提升。{bar_html}</div>',
             unsafe_allow_html=True,
         )
@@ -562,7 +562,7 @@ def _render_overview(student: dict) -> None:
     # 第二行：雷达图 + 成长趋势
     c1, c2 = st.columns([7, 5])
     with c1:
-        card = _card("六维能力雷达", accent=THEME_PRIMARY)
+        card = _card("六维能力雷达", accent=C.THEME_PRIMARY)
         with card:
             ref = {}
             cm = orm_ops.get_dimension_means(class_name=student.get("class_name"))
@@ -582,7 +582,7 @@ def _render_overview(student: dict) -> None:
                     st.warning(txt)
 
     with c2:
-        card = _card("成长趋势", accent=THEME_PRIMARY)
+        card = _card("成长趋势", accent=C.THEME_PRIMARY)
         with card:
             st.plotly_chart(
                 chart_builder.build_trend(student.get("student_id", "x"), composite),
@@ -600,14 +600,14 @@ def _render_overview(student: dict) -> None:
     # 第三行：六维进度条（含等级与升级分差）+ 词云
     c3, c4 = st.columns([7, 5])
     with c3:
-        card = _card("六维能力进度（含等级）", accent=THEME_PRIMARY)
+        card = _card("六维能力进度（含等级）", accent=C.THEME_PRIMARY)
         with card:
             bars = []
             for d in DIMENSION_ORDER:
                 score, _ = dim_scores[d]
                 lv = student.get(f"level_{d}")
                 label = f"{DIMENSION_LABELS[d]}（{lv}）" if lv else DIMENSION_LABELS[d]
-                bars.append(_progress_bar(label, score, DIMENSION_COLORS[d]))
+                bars.append(_progress_bar(label, score, C.DIMENSION_COLORS[d]))
             st.markdown("".join(bars), unsafe_allow_html=True)
             gap_lines = []
             for d in DIMENSION_ORDER:
@@ -621,18 +621,18 @@ def _render_overview(student: dict) -> None:
                 st.caption("　｜　".join(gap_lines))
 
     with c4:
-        card = _card("学生画像词云", accent=THEME_PRIMARY)
+        card = _card("学生画像词云", accent=C.THEME_PRIMARY)
         with card:
             if tags:
                 # 半身人形剪影词云：mask 轮廓内密集填词，外沿细轮廓线勾勒
                 # 按学号 + 标签内容缓存 PNG，避免每次切换页签都重新渲染 matplotlib
                 tags_tuple = tuple(tuple(t) for t in tags)
                 img64 = _wordcloud_png(
-                    str(student.get("student_id") or "x"), tags_tuple, THEME_CARD_BG
+                    str(student.get("student_id") or "x"), tags_tuple, C.THEME_CARD_BG
                 )
                 st.markdown(
                     f'<div style="display:flex;justify-content:center;'
-                    f'background:{THEME_CARD_BG};">'
+                    f'background:{C.THEME_CARD_BG};">'
                     f'<img src="data:image/png;base64,{img64}" '
                     f'style="max-width:100%;"/></div>',
                     unsafe_allow_html=True,
@@ -651,13 +651,13 @@ def _render_overview(student: dict) -> None:
     # 第四行：个性化建议 + 数据来源
     c5, c6 = st.columns([7, 5])
     with c5:
-        card = _card("个性化提升建议", accent=THEME_PRIMARY)
+        card = _card("个性化提升建议", accent=C.THEME_PRIMARY)
         with card:
             advice = analysis_pipeline.get_personalized_advice(student)
             for i, a in enumerate(advice):
                 st.markdown(
-                    f'<div style="background:{THEME_PRIMARY_LIGHT};border-left:3px solid {THEME_PRIMARY};'
-                    f'border-radius:6px;padding:10px 12px;margin-bottom:8px;color:{THEME_TEXT};'
+                    f'<div style="background:{C.THEME_PRIMARY_LIGHT};border-left:3px solid {C.THEME_PRIMARY};'
+                    f'border-radius:6px;padding:10px 12px;margin-bottom:8px;color:{C.THEME_TEXT};'
                     f'font-size:14px;">{a}</div>',
                     unsafe_allow_html=True,
                 )
@@ -682,7 +682,7 @@ def _render_overview(student: dict) -> None:
 
     # 底部：AI 诊断 + PDF 导出
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-    card = _card("AI 成长诊断与个人报告导出", accent=THEME_PRIMARY)
+    card = _card("AI 成长诊断与个人报告导出", accent=C.THEME_PRIMARY)
     with card:
         c7, c8 = st.columns([3, 2])
         with c7:
@@ -728,10 +728,10 @@ _DIM_RULE_PREFIX = {
 def _render_dim_raw_table(dim_key: str, sub_scores: dict, enriched: dict,
                           class_means: dict, grade_means: dict) -> None:
     """原始指标卡：二级指标原始值 / 得分 / 权重 / 归一化区间 / 班级与年级均值对比。"""
-    card = _card("原始指标明细", accent=DIMENSION_COLORS[dim_key])
+    card = _card("原始指标明细", accent=C.DIMENSION_COLORS[dim_key])
     with card:
         head = (
-            f'<tr style="color:{THEME_TEXT_SUB};font-size:12px;text-align:left;">'
+            f'<tr style="color:{C.THEME_TEXT_SUB};font-size:12px;text-align:left;">'
             f'<th style="padding:6px 8px;">二级指标</th><th style="padding:6px 8px;">原始值</th>'
             f'<th style="padding:6px 8px;">得分</th><th style="padding:6px 8px;">权重</th>'
             f'<th style="padding:6px 8px;">归一化区间</th><th style="padding:6px 8px;">班级均值</th>'
@@ -747,24 +747,24 @@ def _render_dim_raw_table(dim_key: str, sub_scores: dict, enriched: dict,
                     diff = float(raw_v) - float(gm)
                     arrow = "↑" if diff > 1e-9 else ("↓" if diff < -1e-9 else "＝")
                     good = (diff > 1e-9) if higher else (diff < -1e-9)
-                    dcolor = RISK_SOFT_TEXT["正常"] if good else (
-                        THEME_TEXT_SUB if arrow == "＝" else RISK_SOFT_TEXT["关注"])
+                    dcolor = C.RISK_SOFT_TEXT["正常"] if good else (
+                        C.THEME_TEXT_SUB if arrow == "＝" else C.RISK_SOFT_TEXT["关注"])
                     diff_html = (f'<span style="color:{dcolor};font-weight:600;">'
                                  f'{arrow} {abs(diff):.2f}</span>')
             except (TypeError, ValueError):
                 pass
-            reverse_mark = ('<span style="font-size:11px;color:' + THEME_TEXT_SUB +
+            reverse_mark = ('<span style="font-size:11px;color:' + C.THEME_TEXT_SUB +
                             ';">（反向计分）</span>') if not higher else ""
             rows.append(
-                f'<tr style="border-top:1px solid {THEME_PRIMARY_LIGHT};font-size:13px;">'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT};">{sub_label}{reverse_mark}</td>'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT};">{_fmt_raw(sub_label, raw_v)}</td>'
-                f'<td style="padding:6px 8px;color:{DIMENSION_COLORS[dim_key]};font-weight:600;">'
+                f'<tr style="border-top:1px solid {C.THEME_PRIMARY_LIGHT};font-size:13px;">'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT};">{sub_label}{reverse_mark}</td>'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT};">{_fmt_raw(sub_label, raw_v)}</td>'
+                f'<td style="padding:6px 8px;color:{C.DIMENSION_COLORS[dim_key]};font-weight:600;">'
                 f'{sub_scores.get(sub_label, 0.0):.1f} 分</td>'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT_SUB};">{w * 100:.0f}%</td>'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT_SUB};">[{lo:g}, {hi:g}]</td>'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT_SUB};">{_fmt_raw(sub_label, cm)}</td>'
-                f'<td style="padding:6px 8px;color:{THEME_TEXT_SUB};">{_fmt_raw(sub_label, gm)}</td>'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT_SUB};">{w * 100:.0f}%</td>'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT_SUB};">[{lo:g}, {hi:g}]</td>'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT_SUB};">{_fmt_raw(sub_label, cm)}</td>'
+                f'<td style="padding:6px 8px;color:{C.THEME_TEXT_SUB};">{_fmt_raw(sub_label, gm)}</td>'
                 f'<td style="padding:6px 8px;">{diff_html}</td></tr>'
             )
         st.markdown(
@@ -775,7 +775,7 @@ def _render_dim_raw_table(dim_key: str, sub_scores: dict, enriched: dict,
 
 def _render_dim_compare(student: dict, dim_key: str, dim_score: float) -> None:
     """同类型对比条：本人 vs 同成长类型均值 vs 年级均值。"""
-    card = _card("同类型对比", accent=DIMENSION_COLORS[dim_key])
+    card = _card("同类型对比", accent=C.DIMENSION_COLORS[dim_key])
     with card:
         ctype = student.get("cluster_type")
         grade = student.get("grade")
@@ -795,7 +795,7 @@ def _render_dim_compare(student: dict, dim_key: str, dim_score: float) -> None:
             return
         st.plotly_chart(
             chart_builder.build_compare_bar("本人", dim_score, refs,
-                                            DIMENSION_COLORS[dim_key]),
+                                            C.DIMENSION_COLORS[dim_key]),
             use_container_width=True,
         )
 
@@ -804,7 +804,7 @@ def _render_dim_tags(dim_key: str, sub_scores: dict) -> None:
     """行为标签：本维度正向（≥75）/ 负向（≤50）标签胶囊。"""
     from config_setting import TAG_DICT
 
-    card = _card("行为标签", accent=DIMENSION_COLORS[dim_key])
+    card = _card("行为标签", accent=C.DIMENSION_COLORS[dim_key])
     with card:
         good_tags, bad_tags = [], []
         for (sub_label, _w, _f, _lo, _hi, _h) in DIMENSION_SUBSCORES[dim_key]:
@@ -820,15 +820,15 @@ def _render_dim_tags(dim_key: str, sub_scores: dict) -> None:
         pills = []
         for t in good_tags[:2]:
             pills.append(
-                f'<span style="display:inline-block;background:{RISK_SOFT_BG["正常"]};'
-                f'border:1px solid {RISK_SOFT_BORDER["正常"]};border-radius:14px;'
-                f'padding:3px 14px;margin:0 6px 6px 0;color:{RISK_SOFT_TEXT["正常"]};'
+                f'<span style="display:inline-block;background:{C.RISK_SOFT_BG["正常"]};'
+                f'border:1px solid {C.RISK_SOFT_BORDER["正常"]};border-radius:14px;'
+                f'padding:3px 14px;margin:0 6px 6px 0;color:{C.RISK_SOFT_TEXT["正常"]};'
                 f'font-size:13px;font-weight:500;">{t}</span>')
         for t in bad_tags[:2]:
             pills.append(
-                f'<span style="display:inline-block;background:{RISK_SOFT_BG["关注"]};'
-                f'border:1px solid {RISK_SOFT_BORDER["关注"]};border-radius:14px;'
-                f'padding:3px 14px;margin:0 6px 6px 0;color:{RISK_SOFT_TEXT["关注"]};'
+                f'<span style="display:inline-block;background:{C.RISK_SOFT_BG["关注"]};'
+                f'border:1px solid {C.RISK_SOFT_BORDER["关注"]};border-radius:14px;'
+                f'padding:3px 14px;margin:0 6px 6px 0;color:{C.RISK_SOFT_TEXT["关注"]};'
                 f'font-size:13px;font-weight:500;">{t}</span>')
         if pills:
             st.markdown("".join(pills), unsafe_allow_html=True)
@@ -838,7 +838,7 @@ def _render_dim_tags(dim_key: str, sub_scores: dict) -> None:
 
 def _render_dim_handbook(student: dict, dim_key: str) -> None:
     """本维度手册提醒：筛出属于本维度的规则提醒。"""
-    card = _card("本维度手册条款提醒", accent=DIMENSION_COLORS[dim_key])
+    card = _card("本维度手册条款提醒", accent=C.DIMENSION_COLORS[dim_key])
     with card:
         prefixes = _DIM_RULE_PREFIX.get(dim_key)
         if not prefixes:
@@ -853,18 +853,18 @@ def _render_dim_handbook(student: dict, dim_key: str) -> None:
             rule = it.get("rule", "")
             rule_name = HANDBOOK_RULES.get(rule, {}).get("name", "")
             if it.get("type") == "鼓励":
-                bg, bd, tx, icon = (RISK_SOFT_BG["正常"], RISK_SOFT_BORDER["正常"],
-                                    RISK_SOFT_TEXT["正常"], "👍")
+                bg, bd, tx, icon = (C.RISK_SOFT_BG["正常"], C.RISK_SOFT_BORDER["正常"],
+                                    C.RISK_SOFT_TEXT["正常"], "👍")
             else:
-                bg, bd, tx, icon = (RISK_SOFT_BG["关注"], RISK_SOFT_BORDER["关注"],
-                                    RISK_SOFT_TEXT["关注"], "🔔")
+                bg, bd, tx, icon = (C.RISK_SOFT_BG["关注"], C.RISK_SOFT_BORDER["关注"],
+                                    C.RISK_SOFT_TEXT["关注"], "🔔")
             st.markdown(
                 f'<div style="background:{bg};border-left:3px solid {bd};'
                 f'border-radius:6px;padding:10px 12px;margin-bottom:8px;">'
-                f'<span style="display:inline-block;background:{THEME_PRIMARY_LIGHT};'
-                f'border:1px solid {THEME_PRIMARY};border-radius:4px;padding:0 8px;'
-                f'color:{THEME_PRIMARY_DARK};font-size:12px;font-weight:700;">{rule}</span>'
-                f'<span style="font-size:12px;color:{THEME_TEXT_SUB};margin-left:6px;">'
+                f'<span style="display:inline-block;background:{C.THEME_PRIMARY_LIGHT};'
+                f'border:1px solid {C.THEME_PRIMARY};border-radius:4px;padding:0 8px;'
+                f'color:{C.THEME_PRIMARY_DARK};font-size:12px;font-weight:700;">{rule}</span>'
+                f'<span style="font-size:12px;color:{C.THEME_TEXT_SUB};margin-left:6px;">'
                 f'{icon} {rule_name}</span>'
                 f'<div style="font-size:14px;color:{tx};margin-top:4px;">{it.get("text", "")}</div>'
                 f'</div>',
@@ -877,7 +877,7 @@ def _render_dim_tree(student: dict, dim_key: str, dim_score: float, dim_level: s
                      class_means: dict, grade_means: dict) -> None:
     """维度分析树（层级展开）：节点连线树，横向 / 纵向可切换，分支可折叠。"""
     label = DIMENSION_LABELS[dim_key]
-    dim_color = DIMENSION_COLORS[dim_key]
+    dim_color = C.DIMENSION_COLORS[dim_key]
     card = _card(f"{label} · 维度分析树（层级展开）", accent=dim_color)
     with card:
         t1, t2 = st.columns([1, 2])
@@ -946,7 +946,7 @@ def _render_dim_ai(student: dict, dim_key: str, dim_score: float, dim_level: str
     AI 未启用 / 调用失败时回退规则式建议，不报错。
     """
     label = DIMENSION_LABELS[dim_key]
-    card = _card(f"AI {label}维度诊断", accent=DIMENSION_COLORS[dim_key])
+    card = _card(f"AI {label}维度诊断", accent=C.DIMENSION_COLORS[dim_key])
     with card:
         st.caption("基于脱敏事实卡片（含本维度全部二级指标）生成，结论附 [Fxx] 引用与证据清单。")
         if st.button("生成 AI 维度诊断", key=f"ai_dim_{dim_key}"):
@@ -973,7 +973,7 @@ def _render_dim_ai(student: dict, dim_key: str, dim_score: float, dim_level: str
 def _render_dimension(student: dict, dim_key: str) -> None:
     """单个维度分页面。"""
     label = DIMENSION_LABELS[dim_key]
-    dim_color = DIMENSION_COLORS[dim_key]
+    dim_color = C.DIMENSION_COLORS[dim_key]
     # enrich 注入手册派生字段，保证二级得分与落库口径一致
     enriched = hb_rules.enrich_record(dict(student))
     dim_scores = scoring.compute_dimension_scores(enriched)
@@ -986,7 +986,7 @@ def _render_dimension(student: dict, dim_key: str) -> None:
 
     # 标题
     st.markdown(
-        f'<div style="font-size:20px;font-weight:700;color:{THEME_TEXT};margin-bottom:4px;">'
+        f'<div style="font-size:20px;font-weight:700;color:{C.THEME_TEXT};margin-bottom:4px;">'
         f'{label} 维度画像</div>'
         f'<div style="width:40px;height:4px;background:{dim_color};border-radius:2px;"></div>',
         unsafe_allow_html=True,
@@ -1002,8 +1002,8 @@ def _render_dimension(student: dict, dim_key: str) -> None:
             st.markdown(
                 f'<div style="text-align:center;margin:20px 0;">'
                 f'<div style="font-size:42px;font-weight:700;color:{dim_color};">{dim_score:.1f}</div>'
-                f'<div style="font-size:11px;color:{THEME_TEXT_SUB};opacity:0.75;">满分 100</div>'
-                f'<div style="font-size:13px;color:{THEME_TEXT_SUB};margin-top:2px;">等级：{dim_level}</div></div>',
+                f'<div style="font-size:11px;color:{C.THEME_TEXT_SUB};opacity:0.75;">满分 100</div>'
+                f'<div style="font-size:13px;color:{C.THEME_TEXT_SUB};margin-top:2px;">等级：{dim_level}</div></div>',
                 unsafe_allow_html=True,
             )
             # 状态标签统一为等级口径（待改进/合格/良好/优秀），不再使用分数段措辞
@@ -1015,8 +1015,8 @@ def _render_dimension(student: dict, dim_key: str) -> None:
                 st.caption(f"📈 距上一等级还差 **{gap:.1f}** 分（等级边界由本届同年级分布决定）")
             weak = min(sub_scores.items(), key=lambda x: x[1])
             st.markdown(
-                f'<div style="margin-top:14px;font-size:13px;color:{THEME_TEXT_SUB};">'
-                f'相对最弱项：<span style="color:{THEME_TEXT};font-weight:500;">{weak[0]}</span> '
+                f'<div style="margin-top:14px;font-size:13px;color:{C.THEME_TEXT_SUB};">'
+                f'相对最弱项：<span style="color:{C.THEME_TEXT};font-weight:500;">{weak[0]}</span> '
                 f'（{weak[1]:.1f} 分）</div>',
                 unsafe_allow_html=True,
             )
@@ -1066,8 +1066,8 @@ def _render_dimension(student: dict, dim_key: str) -> None:
         if dim_advice:
             for a in dim_advice:
                 st.markdown(
-                    f'<div style="background:{THEME_PRIMARY_LIGHT};border-left:3px solid {dim_color};'
-                    f'border-radius:6px;padding:10px 12px;margin-bottom:8px;color:{THEME_TEXT};'
+                    f'<div style="background:{C.THEME_PRIMARY_LIGHT};border-left:3px solid {dim_color};'
+                    f'border-radius:6px;padding:10px 12px;margin-bottom:8px;color:{C.THEME_TEXT};'
                     f'font-size:14px;">{a}</div>',
                     unsafe_allow_html=True,
                 )
@@ -1082,15 +1082,15 @@ def _render_ai(student: dict) -> None:
     """AI 对话助手（多轮：携带近几轮历史，支持追问与指代）。"""
     _ai_status_banner()
     st.markdown(
-        f'<div style="font-size:18px;font-weight:700;color:{THEME_TEXT};margin-bottom:4px;">'
+        f'<div style="font-size:18px;font-weight:700;color:{C.THEME_TEXT};margin-bottom:4px;">'
         f'AI 对话助手</div>',
         unsafe_allow_html=True,
     )
     # 隐私徽章（常驻）：脱敏网关说明
     st.markdown(
-        f'<div style="background:{THEME_PRIMARY_LIGHT};border:1px solid {THEME_CARD_BORDER};'
-        f'border-left:4px solid {THEME_PRIMARY};border-radius:8px;padding:9px 14px;'
-        f'font-size:13px;color:{THEME_TEXT};margin-bottom:8px;">'
+        f'<div style="background:{C.THEME_PRIMARY_LIGHT};border:1px solid {C.THEME_CARD_BORDER};'
+        f'border-left:4px solid {C.THEME_PRIMARY};border-radius:8px;padding:9px 14px;'
+        f'font-size:13px;color:{C.THEME_TEXT};margin-bottom:8px;">'
         f'🔒 数据经脱敏网关处理后发送，原始数据不出本机。</div>',
         unsafe_allow_html=True,
     )

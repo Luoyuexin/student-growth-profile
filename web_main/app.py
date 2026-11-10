@@ -23,12 +23,10 @@ if ROOT not in sys.path:
 
 from local_database import db_init, orm_ops
 from analysis_core import pipeline as analysis_pipeline
+import config_setting as C
 from config_setting import (
-    THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_PRIMARY_LIGHT,
-    THEME_CARD_BG, THEME_CARD_BORDER, THEME_TEXT, THEME_TEXT_SUB,
     SPINNER_DATA,
-    THEME_GRADIENT,
-    build_theme_css,
+    build_theme_css
 )
 
 from web_main.student_app import render_student_page
@@ -101,26 +99,26 @@ def _inject_login_css() -> None:
     .stTabs [data-testid="stTab"], .stTabs [data-baseweb="tab"] {{
         height: 58px;
         padding: 0 30px;
-        border: 1px solid {THEME_CARD_BORDER} !important;
-        border-bottom: 1px solid {THEME_CARD_BORDER} !important;
+        border: 1px solid {C.THEME_CARD_BORDER} !important;
+        border-bottom: 1px solid {C.THEME_CARD_BORDER} !important;
         border-radius: 14px !important;
-        background: {THEME_CARD_BG} !important;
-        color: {THEME_TEXT_SUB} !important;
+        background: {C.THEME_CARD_BG} !important;
+        color: {C.THEME_TEXT_SUB} !important;
         font-size: 16px !important;
-        box-shadow: 0 1px 4px rgba(30,65,113,0.06);
+        box-shadow: 0 1px 4px {C.LOGIN_TAB_SHADOW};
     }}
     .stTabs [data-testid="stTab"]:hover, .stTabs [data-baseweb="tab"]:hover {{
-        border-color: {THEME_PRIMARY} !important;
-        background: {THEME_PRIMARY_LIGHT} !important;
-        color: {THEME_PRIMARY_DARK} !important;
+        border-color: {C.THEME_PRIMARY} !important;
+        background: {C.THEME_PRIMARY_LIGHT} !important;
+        color: {C.THEME_PRIMARY_DARK} !important;
     }}
     .stTabs [data-testid="stTab"][aria-selected="true"], .stTabs [aria-selected="true"] {{
-        border: 1px solid {THEME_PRIMARY} !important;
-        background: {THEME_GRADIENT} !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 14px rgba(91,130,184,0.30);
+        border: 1px solid {C.THEME_PRIMARY} !important;
+        background: {C.THEME_GRADIENT} !important;
+        color: {C.PRIMARY_BTN_TEXT} !important;
+        box-shadow: 0 4px 14px {C.LOGIN_TAB_ACTIVE_SHADOW};
     }}
-    .stTabs [data-testid="stTab"][aria-selected="true"] p {{ color: #FFFFFF !important; }}
+    .stTabs [data-testid="stTab"][aria-selected="true"] p {{ color: {C.PRIMARY_BTN_TEXT} !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -155,30 +153,48 @@ def _tech_badges() -> None:
     """登录页底部技术徽章行。"""
     badges = ["Python", "Streamlit", "SQLite", "scikit-learn", "Plotly"]
     pills = "".join(
-        f'<span style="display:inline-block;background:{THEME_PRIMARY_LIGHT};'
-        f'border:1px solid {THEME_CARD_BORDER};border-radius:14px;padding:3px 14px;'
-        f'margin:0 4px;color:{THEME_PRIMARY_DARK};font-size:13px;font-weight:500;">{b}</span>'
+        f'<span style="display:inline-block;background:{C.THEME_PRIMARY_LIGHT};'
+        f'border:1px solid {C.THEME_CARD_BORDER};border-radius:14px;padding:3px 14px;'
+        f'margin:0 4px;color:{C.THEME_PRIMARY_DARK};font-size:13px;font-weight:500;">{b}</span>'
         for b in badges
     )
     st.markdown(
         f'<div style="text-align:center;margin-top:28px;">{pills}</div>'
         f'<div style="text-align:center;margin-top:10px;font-size:13px;'
-        f'color:{THEME_TEXT_SUB};">🖥️ 单机可运行 · 原始数据不出域</div>'
+        f'color:{C.THEME_TEXT_SUB};">🖥️ 单机可运行 · 原始数据不出域</div>'
         f'<div style="text-align:center;margin-top:6px;font-size:12px;'
-        f'color:{THEME_TEXT_SUB};">演示数据为团队自建模拟学情数据集（240 条 / 68 字段），'
+        f'color:{C.THEME_TEXT_SUB};">演示数据为团队自建模拟学情数据集（240 条 / 68 字段），'
         f'不含任何真实学生信息</div>',
         unsafe_allow_html=True,
     )
 
 
-def _logout_button() -> bool:
-    """页面级退出按钮。
+def _skin_popover() -> None:
+    """右上角皮肤切换器：按钮由全站主题 CSS 着色，两套皮肤都协调。"""
+    with st.popover("🎨 皮肤", use_container_width=True):
+        st.caption("界面主题（即时生效）")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("雾蓝", use_container_width=True, key="skin_blue_btn"):
+                st.session_state.skin = C.SKIN_MIST_BLUE
+                C.set_skin(C.SKIN_MIST_BLUE)
+                st.rerun()
+        with c2:
+            if st.button("拿破仑黄", use_container_width=True, key="skin_gold_btn"):
+                st.session_state.skin = C.SKIN_GOLD
+                C.set_skin(C.SKIN_GOLD)
+                st.rerun()
+        st.caption("当前：" + C.SKIN_LABELS[C.get_skin()])
 
-    不使用 st.sidebar：只要向侧栏写入内容，Streamlit 在登录后就会自动展开侧栏，
-    挤占主内容区宽度。改为主区域右上角的按钮，所有页签下均可见。
-    """
-    _, col = st.columns([11, 1])
-    with col:
+
+def _logout_button() -> bool:
+    """页面级退出按钮 + 皮肤切换（不使用侧栏，避免登录后自动展开）。"""
+    # 顶部留出 Streamlit 固定工具栏高度，避免右上角 popover 被 header 遮挡
+    st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
+    _, c_skin, c_out = st.columns([10, 1.4, 1])
+    with c_skin:
+        _skin_popover()
+    with c_out:
         return st.button("退出登录", key="global_logout", use_container_width=True)
 
 
@@ -187,6 +203,10 @@ def main() -> None:
         page_title=PLATFORM_NAME, layout="wide",
         initial_sidebar_state="collapsed",
     )
+    # 皮肤：每次脚本执行开头同步当前会话的选择（色板为进程级共享，需按会话重设）
+    if "skin" not in st.session_state:
+        st.session_state.skin = C.DEFAULT_SKIN
+    C.set_skin(st.session_state.skin)
     _ensure_data()
 
     # 会话状态
@@ -210,11 +230,14 @@ def main() -> None:
 
     # 未登录：品牌化登录页
     _inject_login_css()
+    _, c_skin = st.columns([12, 1.4])
+    with c_skin:
+        _skin_popover()
     st.markdown(
         f'<div style="text-align:center;margin-top:24px;">'
-        f'<div style="font-size:34px;font-weight:700;color:{THEME_TEXT};">'
+        f'<div style="font-size:34px;font-weight:700;color:{C.THEME_TEXT};">'
         f'📊 {PLATFORM_NAME}</div>'
-        f'<div style="font-size:15px;color:{THEME_TEXT_SUB};margin-top:10px;">'
+        f'<div style="font-size:15px;color:{C.THEME_TEXT_SUB};margin-top:10px;">'
         f'{PLATFORM_TAGLINE}</div></div>',
         unsafe_allow_html=True,
     )

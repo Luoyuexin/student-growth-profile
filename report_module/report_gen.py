@@ -19,11 +19,10 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 
 from report_module import charts as chart_builder
+import config_setting as C
 from config_setting import (
-    DIMENSION_ORDER, DIMENSION_LABELS,
-    THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_TEXT_SUB,
-    RISK_SOFT_TEXT, RISK_CHART_COLORS, CHART_NEUTRAL,
-    TABLE_ROW_ALT,
+    DIMENSION_ORDER,
+    DIMENSION_LABELS
 )
 
 # 注册中文字体（若有），避免 PDF 中文乱码 / 方框
@@ -90,8 +89,8 @@ def _pdf_radar(student: dict) -> io.BytesIO:
 
     fig = plt.figure(figsize=(5, 5))
     ax = plt.subplot(111, polar=True)
-    ax.plot(angles_c, vals_c, linewidth=2, color=THEME_PRIMARY)
-    ax.fill(angles_c, vals_c, alpha=0.25, color=THEME_PRIMARY)
+    ax.plot(angles_c, vals_c, linewidth=2, color=C.THEME_PRIMARY)
+    ax.fill(angles_c, vals_c, alpha=0.25, color=C.THEME_PRIMARY)
     ax.set_xticks(angles)
     ax.set_xticklabels(labels, fontsize=9)
     ax.set_yticks([20, 40, 60, 80, 100])
@@ -106,11 +105,11 @@ def _pdf_distribution(distribution: dict) -> io.BytesIO:
     labels = [l for l in labels_order if l in distribution] + \
              [l for l in distribution if l not in labels_order]
     values = [distribution.get(l, 0) for l in labels]
-    colors_map = dict(RISK_CHART_COLORS)
-    colors_map["正常"] = THEME_PRIMARY
+    colors_map = dict(C.RISK_CHART_COLORS)
+    colors_map["正常"] = C.THEME_PRIMARY
 
     fig = plt.figure(figsize=(6, 3.2))
-    plt.bar(labels, values, color=[colors_map.get(l, CHART_NEUTRAL) for l in labels])
+    plt.bar(labels, values, color=[colors_map.get(l, C.CHART_NEUTRAL) for l in labels])
     plt.title("风险等级分布", fontsize=12)
     plt.ylabel("人数")
     plt.tight_layout()
@@ -123,7 +122,7 @@ def _pdf_trend(student_id: str, current_score: float) -> io.BytesIO:
     labels = [f"第{i}学期" for i in range(1, 7)]
 
     fig = plt.figure(figsize=(6, 3.2))
-    plt.plot(labels, scores, marker="o", color=THEME_PRIMARY, linewidth=2)
+    plt.plot(labels, scores, marker="o", color=C.THEME_PRIMARY, linewidth=2)
     plt.ylim(0, 100)
     plt.title("成长趋势", fontsize=12)
     plt.tight_layout()
@@ -153,7 +152,7 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     )
     h_style = ParagraphStyle(
         "H", parent=styles["Heading2"],
-        textColor=colors.HexColor(THEME_PRIMARY_DARK),
+        textColor=colors.HexColor(C.THEME_PRIMARY_DARK),
         fontName=RL_FONT,
     )
     body = ParagraphStyle("BodyCJK", parent=styles["BodyText"],
@@ -168,7 +167,7 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     story.append(Spacer(1, 10))
 
     risk = student.get("risk_level", "正常")
-    level_color = RISK_SOFT_TEXT.get(risk, THEME_TEXT_SUB)
+    level_color = C.RISK_SOFT_TEXT.get(risk, C.THEME_TEXT_SUB)
     card_data = [
         ["综合评分", f"{float(student.get('composite_score', 0) or 0):.1f}"],
         ["综合等级", student.get("level_overall") or "—"],
@@ -199,11 +198,11 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     dim_table = Table(dim_rows, colWidths=[7 * cm, 3 * cm, 3 * cm], repeatRows=1)
     dim_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), RL_FONT),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(THEME_PRIMARY)),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(C.THEME_PRIMARY)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(TABLE_ROW_ALT)]),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(C.TABLE_ROW_ALT)]),
     ]))
     story.append(dim_table)
     story.append(Spacer(1, 10))
@@ -282,11 +281,11 @@ def export_teacher_batch_pdf(
     )
     table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), RL_FONT),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(THEME_PRIMARY)),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(C.THEME_PRIMARY)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(TABLE_ROW_ALT)]),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(C.TABLE_ROW_ALT)]),
     ]))
     story.append(table)
     doc.build(story)

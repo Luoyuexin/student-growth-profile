@@ -28,22 +28,22 @@ from analysis_core import handbook_rules as hb_rules
 from ai_insight import services as ai, llm_client
 from web_main.student_app import _progress_bar, _render_ai_text
 
+import config_setting as C
 from config_setting import (
-    DIMENSION_ORDER, DIMENSION_LABELS, DIMENSION_SUBSCORES, DIMENSION_COLORS,
+    DIMENSION_ORDER,
+    DIMENSION_LABELS,
+    DIMENSION_SUBSCORES,
     DIMENSION_WEIGHTS,
-    THEME_PRIMARY, THEME_PRIMARY_DARK, THEME_PRIMARY_LIGHT,
-    THEME_BG, THEME_CARD_BG, THEME_CARD_BORDER, THEME_TEXT, THEME_TEXT_SUB,
-    RISK_SOFT_BG, RISK_SOFT_BORDER, RISK_SOFT_TEXT,
-    NEUTRAL_BG, NEUTRAL_BORDER,
     HANDBOOK_RULES,
-    SPINNER_AI, SPINNER_DATA,
-    build_theme_css,
+    SPINNER_AI,
+    SPINNER_DATA,
+    build_theme_css
 )
 
 
 DIM_LABELS = [DIMENSION_LABELS[d] for d in DIMENSION_ORDER]
 DIM_COLS = [f"score_{d}" for d in DIMENSION_ORDER]
-DIM_COLOR_LIST = [DIMENSION_COLORS[d] for d in DIMENSION_ORDER]
+DIM_COLOR_LIST = [C.DIMENSION_COLORS[d] for d in DIMENSION_ORDER]
 
 
 def _inject_theme_css() -> None:
@@ -51,13 +51,14 @@ def _inject_theme_css() -> None:
     st.markdown(build_theme_css(), unsafe_allow_html=True)
 
 
-def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_generator.DeltaGenerator:
+def _card(title: str | None = None, accent: str | None = None) -> st.delta_generator.DeltaGenerator:
     """返回一个带边框圆角的容器。"""
+    accent = accent or C.THEME_PRIMARY
     c = st.container(border=True)
     if title:
         with c:
             st.markdown(
-                f'<div style="font-size:15px;font-weight:600;color:{THEME_TEXT};'
+                f'<div style="font-size:15px;font-weight:600;color:{C.THEME_TEXT};'
                 f'margin-bottom:14px;border-left:4px solid {accent};padding-left:10px;">'
                 f'{title}</div>',
                 unsafe_allow_html=True,
@@ -66,15 +67,16 @@ def _card(title: str | None = None, accent: str = THEME_PRIMARY) -> st.delta_gen
 
 
 def _metric_card(title: str, value: str, subtitle: str | None = None,
-                 accent: str = THEME_PRIMARY) -> str:
+                 accent: str | None = None) -> str:
+    accent = accent or C.THEME_PRIMARY
     sub_html = (
-        f'<div style="font-size:12px;color:{THEME_TEXT_SUB};margin-top:4px;">{subtitle}</div>'
+        f'<div style="font-size:12px;color:{C.THEME_TEXT_SUB};margin-top:4px;">{subtitle}</div>'
         if subtitle else ""
     )
     return (
-        f'<div style="background:{THEME_CARD_BG};border:1px solid {THEME_CARD_BORDER};'
+        f'<div style="background:{C.THEME_CARD_BG};border:1px solid {C.THEME_CARD_BORDER};'
         f'border-radius:12px;padding:16px;text-align:center;">'
-        f'<div style="font-size:12px;color:{THEME_TEXT_SUB};margin-bottom:4px;">{title}</div>'
+        f'<div style="font-size:12px;color:{C.THEME_TEXT_SUB};margin-bottom:4px;">{title}</div>'
         f'<div style="font-size:26px;font-weight:700;color:{accent};">{value}</div>'
         f'{sub_html}</div>'
     )
@@ -128,16 +130,16 @@ def render_teacher_page(teacher: dict) -> None:
     h1, h2 = st.columns([3, 2])
     with h1:
         st.markdown(
-            f'<div style="font-size:22px;font-weight:700;color:{THEME_TEXT};">'
+            f'<div style="font-size:22px;font-weight:700;color:{C.THEME_TEXT};">'
             f'教师端 · 班级管理与预警</div>',
             unsafe_allow_html=True,
         )
     with h2:
         st.markdown(
-            f'<div style="background:{THEME_CARD_BG};border:1px solid {THEME_CARD_BORDER};'
+            f'<div style="background:{C.THEME_CARD_BG};border:1px solid {C.THEME_CARD_BORDER};'
             f'border-radius:10px;padding:10px 14px;text-align:right;">'
-            f'<div style="font-size:12px;color:{THEME_TEXT_SUB};">管辖班级</div>'
-            f'<div style="font-size:13px;color:{THEME_TEXT};font-weight:500;">'
+            f'<div style="font-size:12px;color:{C.THEME_TEXT_SUB};">管辖班级</div>'
+            f'<div style="font-size:13px;color:{C.THEME_TEXT};font-weight:500;">'
             f'{"、".join(classes)}</div></div>',
             unsafe_allow_html=True,
         )
@@ -150,10 +152,10 @@ def render_teacher_page(teacher: dict) -> None:
         b1, b2 = st.columns([11, 1])
         with b1:
             st.markdown(
-                f'<div style="background:{RISK_SOFT_BG["高危"]};'
-                f'border:1px solid {RISK_SOFT_BORDER["高危"]};'
-                f'border-left:4px solid {RISK_SOFT_TEXT["高危"]};'
-                f'border-radius:10px;padding:12px 16px;color:{RISK_SOFT_TEXT["高危"]};'
+                f'<div style="background:{C.RISK_SOFT_BG["高危"]};'
+                f'border:1px solid {C.RISK_SOFT_BORDER["高危"]};'
+                f'border-left:4px solid {C.RISK_SOFT_TEXT["高危"]};'
+                f'border-radius:10px;padding:12px 16px;color:{C.RISK_SOFT_TEXT["高危"]};'
                 f'font-size:14px;font-weight:500;margin-bottom:12px;">'
                 f'⚠️ 实时预警：当前有 {len(high_students)} 名高危学生，请重点关注：{names}{more}</div>',
                 unsafe_allow_html=True,
@@ -184,10 +186,10 @@ def render_teacher_page(teacher: dict) -> None:
             st.markdown(_metric_card("管辖学生", str(total)), unsafe_allow_html=True)
         with c2:
             st.markdown(_metric_card("高危学生", str(distribution.get("高危", 0)),
-                                     accent=RISK_SOFT_TEXT["高危"]), unsafe_allow_html=True)
+                                     accent=C.RISK_SOFT_TEXT["高危"]), unsafe_allow_html=True)
         with c3:
             st.markdown(_metric_card("关注学生", str(distribution.get("关注", 0)),
-                                     accent=RISK_SOFT_TEXT["关注"]), unsafe_allow_html=True)
+                                     accent=C.RISK_SOFT_TEXT["关注"]), unsafe_allow_html=True)
         with c4:
             avg_score = 0.0
             if recs:
@@ -223,8 +225,8 @@ def render_teacher_page(teacher: dict) -> None:
                     pie.update_layout(
                         height=340,
                         margin=dict(l=20, r=20, t=30, b=20),
-                        paper_bgcolor=THEME_CARD_BG,
-                        font=dict(color=THEME_TEXT),
+                        paper_bgcolor=C.THEME_CARD_BG,
+                        font=dict(color=C.THEME_TEXT),
                         # 图例改右侧竖排，避免底部水平图例遮挡最下方扇区标签
                         legend=dict(orientation="v", x=1.02, y=0.5,
                                     xanchor="left", yanchor="middle"),
@@ -264,9 +266,9 @@ def render_teacher_page(teacher: dict) -> None:
         with card:
             # 隐私徽章（常驻）：脱敏口径说明
             st.markdown(
-                f'<div style="display:inline-block;background:{THEME_PRIMARY_LIGHT};'
-                f'border:1px solid {THEME_CARD_BORDER};border-radius:14px;padding:3px 14px;'
-                f'color:{THEME_PRIMARY_DARK};font-size:12px;font-weight:500;margin-bottom:8px;">'
+                f'<div style="display:inline-block;background:{C.THEME_PRIMARY_LIGHT};'
+                f'border:1px solid {C.THEME_CARD_BORDER};border-radius:14px;padding:3px 14px;'
+                f'color:{C.THEME_PRIMARY_DARK};font-size:12px;font-weight:500;margin-bottom:8px;">'
                 f'🔒 已脱敏：姓名仅留首字 · 学号仅留末四位</div>',
                 unsafe_allow_html=True,
             )
@@ -344,7 +346,7 @@ def render_teacher_page(teacher: dict) -> None:
                             score, _ = dim_scores[d]
                             lv = disp.get(f"level_{d}")
                             label = f"{DIMENSION_LABELS[d]}（{lv}）" if lv else DIMENSION_LABELS[d]
-                            bars.append(_progress_bar(label, score, DIMENSION_COLORS[d]))
+                            bars.append(_progress_bar(label, score, C.DIMENSION_COLORS[d]))
                         st.markdown("".join(bars), unsafe_allow_html=True)
 
                         # 个体画像报告：复用 F1 AI 诊断链路（事实卡片→强制引用→后校验），
@@ -382,7 +384,7 @@ def render_teacher_page(teacher: dict) -> None:
                         st.markdown(
                             _metric_card(
                                 f"{rid} · {HANDBOOK_RULES.get(rid, {}).get('name', '')}",
-                                str(cnt), "人", accent=RISK_SOFT_TEXT["关注"]),
+                                str(cnt), "人", accent=C.RISK_SOFT_TEXT["关注"]),
                             unsafe_allow_html=True,
                         )
                 opts = ["全部"] + list(stats.keys())
@@ -410,8 +412,8 @@ def render_teacher_page(teacher: dict) -> None:
             risk_students = orm_ops.get_risk_students(classes, ["高危", "关注"])
             if not risk_students:
                 st.markdown(
-                    f'<div style="background:{RISK_SOFT_BG["正常"]};border:1px solid {RISK_SOFT_BORDER["正常"]};'
-                    f'border-radius:10px;padding:12px 16px;color:{RISK_SOFT_TEXT["正常"]};'
+                    f'<div style="background:{C.RISK_SOFT_BG["正常"]};border:1px solid {C.RISK_SOFT_BORDER["正常"]};'
+                    f'border-radius:10px;padding:12px 16px;color:{C.RISK_SOFT_TEXT["正常"]};'
                     f'font-size:14px;">✅ 当前无高危 / 关注学生。</div>',
                     unsafe_allow_html=True,
                 )
@@ -478,11 +480,11 @@ def render_teacher_page(teacher: dict) -> None:
                         ))
                     bar.update_layout(
                         barmode="group", height=360,
-                        yaxis=dict(title="维度均值", range=[0, 100], gridcolor=THEME_PRIMARY_LIGHT),
-                        xaxis=dict(gridcolor=THEME_PRIMARY_LIGHT),
+                        yaxis=dict(title="维度均值", range=[0, 100], gridcolor=C.THEME_PRIMARY_LIGHT),
+                        xaxis=dict(gridcolor=C.THEME_PRIMARY_LIGHT),
                         legend=dict(orientation="h", yanchor="bottom", y=-0.25),
-                        paper_bgcolor=THEME_CARD_BG, plot_bgcolor=THEME_CARD_BG,
-                        font=dict(color=THEME_TEXT),
+                        paper_bgcolor=C.THEME_CARD_BG, plot_bgcolor=C.THEME_CARD_BG,
+                        font=dict(color=C.THEME_TEXT),
                     )
                     st.plotly_chart(bar, use_container_width=True)
 
@@ -498,16 +500,16 @@ def render_teacher_page(teacher: dict) -> None:
                     for lv in ["正常", "关注", "高危"]:
                         stack.add_trace(go.Bar(
                             x=risk_by.index.tolist(), y=risk_by[lv].tolist(),
-                            name=lv, marker_color=RISK_SOFT_TEXT[lv],
+                            name=lv, marker_color=C.RISK_SOFT_TEXT[lv],
                             text=risk_by[lv].tolist(), textposition="inside",
                         ))
                     stack.update_layout(
                         barmode="stack", height=360,
-                        yaxis=dict(title="人数", gridcolor=THEME_PRIMARY_LIGHT),
-                        xaxis=dict(gridcolor=THEME_PRIMARY_LIGHT),
+                        yaxis=dict(title="人数", gridcolor=C.THEME_PRIMARY_LIGHT),
+                        xaxis=dict(gridcolor=C.THEME_PRIMARY_LIGHT),
                         legend=dict(orientation="h", yanchor="bottom", y=-0.25),
-                        paper_bgcolor=THEME_CARD_BG, plot_bgcolor=THEME_CARD_BG,
-                        font=dict(color=THEME_TEXT),
+                        paper_bgcolor=C.THEME_CARD_BG, plot_bgcolor=C.THEME_CARD_BG,
+                        font=dict(color=C.THEME_TEXT),
                     )
                     st.plotly_chart(stack, use_container_width=True)
 
@@ -713,7 +715,7 @@ def _grade_tree_means(classes_key: tuple) -> dict:
 def _render_grade_tree_one(dim_key: str, means: dict, orientation: str,
                            chart_key: str) -> None:
     """渲染单个维度的聚合分析树（根=维度均值，L1=二级指标均值，L2=均值+权重）。"""
-    dim_color = DIMENSION_COLORS[dim_key]
+    dim_color = C.DIMENSION_COLORS[dim_key]
     spec = DIMENSION_SUBSCORES[dim_key]
     sub_means = means[dim_key]
     total_w = sum(s[1] for s in spec) or 1.0
