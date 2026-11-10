@@ -45,8 +45,11 @@
 │   ├── prompts.yaml       # AI 提示词模板（已入库）
 │   ├── llm_config.example.yaml  # AI 配置样例（含字段说明）
 │   └── llm_config.yaml    # 实际配置（仅需填 api_key；含密钥，已 gitignore）
-├── data_source/           # 示例学情数据集（CSV）+ 模拟数据生成脚本
-│   └── generate_mock_data.py
+├── data_source/           # 模拟学情数据集（240 条 / 68 字段）+ 手动导入与适配器预留
+│   ├── generate_mock_data.py   # 固定随机种子生成模拟数据
+│   ├── adapters.py             # 统一数据集契约；教务 / 一卡通 / 第二课堂适配器预留
+│   ├── data_import.py          # CSV 手动导入：校验、备份、落库、重算
+│   └── import_template.csv     # 68 字段导入模板
 ├── local_database/        # SQLite 初始化与 ORM 操作
 │   ├── db_init.py         # 建表、默认账号、连接管理
 │   └── orm_ops.py         # 认证、读写（权限 + 脱敏）
@@ -72,6 +75,8 @@ python data_source/generate_mock_data.py
 ```
 
 也可以不手动执行——首次运行 `streamlit run` 时系统会自动播种数据并跑分析流水线。
+
+如需替换为自己的数据集：教师端「配置管理 → 数据导入」上传 CSV（字段模板见 `data_source/import_template.csv`）。导入前自动备份数据库，导入后自动重算六维评分 / 聚类 / 风险等级；教务 / 一卡通 / 第二课堂接口仅作适配器预留，尚未实现自动同步。
 
 ### 3. 配置 AI 大模型（可选，创新点功能需要）
 
@@ -122,7 +127,7 @@ streamlit run web_main/app.py
 - **学生画像词云图**（自动生成特征标签）
 - **维度分析树**（每个维度下钻二级指标，Treemap 矩形树图）
 - 成长趋势折线图
-- 多源数据来源标注（教务 / 一卡通 / 第二课堂 / 心理 / 学工等）
+- 数据来源说明：六维指标的目标数据源与当前模拟数据口径（教务 / 一卡通 / 第二课堂等接口仅作设计预留，尚未实现自动同步）
 - 基于六维评分的个性化提升建议
 - 🤖 **AI 成长诊断报告**（F1，自然语言 + 一键 PDF，量化结论强制 `[Fxx]` 引用 + 报告末尾附证据索引，作品书 4.4.2 三道防线）
 - 🤖 **图表 AI 解读**（F3，雷达图 / 趋势图旁文字解读，结论可溯源）
@@ -148,6 +153,7 @@ streamlit run web_main/app.py
 - 风险预警阈值可调（成绩、考勤、消费异常等）
 - 各年级聚类 K 值与特征权重可调（`config_setting/__init__.py`）
 - 教师管辖班级范围配置
+- 手动导入 CSV 学情数据集（当前数据入口，导入后自动重算画像）
 - AI 模型开关与提示词模板（`config_setting/prompts.yaml`）
 
 ## 数据维度（六维一体）
@@ -168,13 +174,14 @@ streamlit run web_main/app.py
 - 师生双端分别登录，分级数据查看权限。
 - 敏感字段（姓名、学号）全程脱敏显示（`mask_name` / `mask_id`，两字姓名同样打码：`张三→张*`）。
 - 学生只能查看本人数据，教师只能查看管辖班级数据。
-- 所有数据本地存储（`local_database/student_growth.db`），不上传云端。
+- 学生数据全程保留在本机（`local_database/student_growth.db`）；除经脱敏后的大模型调用外，不经过任何第三方服务器。
 - **调用云端大模型时经脱敏网关**：白名单字段 + 原始明细大字段双重剥离，仅发送带编号的事实卡片（维度分值与班级/年级聚合统计）；回复中含数字但无 `[Fxx]` 引用的句子输出前剔除，量化结论可溯源；API Key 存本地 `llm_config.yaml`（已 gitignore），不进 git / 数据库。
 
-## 扩展点（预留）
+## 扩展点（设计预留，尚未实现自动同步）
 
+- `data_source/adapters.py`：统一数据集字段契约。已实现 `MockDatasetAdapter`（模拟数据）与 `CsvDatasetAdapter`（手动导入）；`AcademicSystemAdapter` / `CampusCardAdapter` / `SecondClassAdapter` 为按《作品书》5.3 长期规划预留的空实现（TODO），需在合规授权框架下接入。
+- 当前数据入口为手动导入数据集：教师端「配置管理 → 数据导入」，或命令行 `python data_source/generate_mock_data.py`；教务 / 一卡通 / 第二课堂的自动同步尚未实现（《作品书》4.5.3）。
 - `config_setting.load_config_from_json()`：预留教务系统 / 配置中心下发 JSON 配置。
-- `data_source/` 与 `local_database/orm_ops.py`：可替换为对接教务系统、一卡通系统的真实数据接口。
 - `analysis_core/pipeline.run_pipeline(records=...)`：支持直接传入外部记录进行实时分析。
 - `ai_insight/llm_client.py`：抽象 LLM 接口，可扩展更多模型接入方式。
 
@@ -207,5 +214,6 @@ streamlit run web_main/app.py
 ## 说明
 
 - 模拟数据中的「成长趋势」为基于当前综合评分回溯生成的演示走势（原始数据为截面快照）；随机种子由学号 md5 派生，同一学生多次打开曲线一致。
+- 数据集为团队自主生成的 240 条模拟学情数据（68 字段、2023 / 2024 级 4 个教学班、固定随机种子），用于算法调试与端到端验证；不含任何校内真实学生信息（《作品书》4.2.1、4.5.1）。
 - 密码哈希为演示用轻量实现，生产环境请替换为 bcrypt / argon2 并强制改密。
 - 本项目全流程自主开发，核心代码由团队独立完成；前期训练仅使用公开脱敏数据集，不调取校内真实隐私数据。

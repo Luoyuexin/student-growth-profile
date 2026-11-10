@@ -614,6 +614,73 @@ def render_teacher_page(teacher: dict) -> None:
                 st.success("分析完成，聚类模型与画像结果已刷新。")
                 st.rerun()
 
+            st.divider()
+            st.write("手动导入学情数据集（当前数据入口）")
+            st.caption(
+                "字段模板 data_source/import_template.csv（68 字段，必填 4 列："
+                "student_id / name / grade / class_name）。导入前自动备份数据库，"
+                "导入后自动重算清洗 → 六维评分 → 聚类 → 风险等级。"
+                "教务 / 一卡通 / 第二课堂接口仅作适配器预留，尚未实现自动同步。"
+                "建议至少提供六维核心指标，缺失过多会导致画像结果不可解释。"
+            )
+
+            from data_source import adapters as adapter_registry
+            from data_source import data_import as importer
+
+            st.download_button(
+                "下载 CSV 导入模板",
+                data=importer.build_template_bytes(),
+                file_name="import_template.csv",
+                mime="text/csv",
+                key="download_import_template",
+            )
+            with st.expander("数据源适配器状态"):
+                for item in adapter_registry.list_adapters():
+                    flag = "已实现" if item["implemented"] else "设计预留（TODO，尚未实现自动同步）"
+                    st.caption("- " + item["source_label"] + "：" + flag)
+
+            uploaded = st.file_uploader(
+                "选择学情数据 CSV（UTF-8 / UTF-8-SIG）",
+                type=["csv"], key="data_import_uploader",
+            )
+            import_mode = st.radio(
+                "导入方式",
+                ["追加 / 更新（按学号）", "全量替换（清空学生表）"],
+                key="data_import_mode", horizontal=True,
+            )
+            if uploaded is not None:
+                st.session_state["import_csv_bytes"] = uploaded.getvalue()
+
+            csv_bytes = st.session_state.get("import_csv_bytes")
+            if csv_bytes:
+                preview = importer.inspect_upload(csv_bytes)
+                st.write("预览：" + str(preview["row_count"]) + " 行 / "
+                         + str(len(preview["fieldnames"])) + " 列")
+                for err in preview["errors"]:
+                    st.error(err)
+                for warn in preview["warnings"]:
+                    st.warning(warn)
+                if preview["grade_counts"]:
+                    st.caption("按年级样本量：" + "、".join(
+                        f"{g} 级 {n} 人" for g, n in sorted(preview["grade_counts"].items())
+                    ))
+                if st.button(
+                    "确认导入并重算画像",
+                    key="data_import_confirm",
+                    disabled=not preview["ok"],
+                ):
+                    with st.spinner(SPINNER_DATA):
+                        result = importer.import_records(
+                            preview["records"],
+                            mode="replace" if "全量替换" in import_mode else "upsert",
+                        )
+                    st.success(
+                        "已导入 " + str(result["rows"]) + " 条；画像已重算。"
+                        "数据库备份：" + result["backup"]
+                    )
+                    st.session_state.pop("import_csv_bytes", None)
+                    st.rerun()
+
 
 # ---------------------------------------------------------------------------
 # 年级分析树（节点连线层级树，替代原 Treemap）

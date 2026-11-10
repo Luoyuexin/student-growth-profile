@@ -259,7 +259,7 @@ def build_trend(student_id: str, current_score: float, semesters: int = 6) -> go
     # 图下注记：演示数据说明（接入真实学期数据后自动替换）
     fig.add_annotation(
         xref="paper", yref="paper", x=0, y=-0.22,
-        text="注：历史走势为演示模拟数据，接入真实学期数据后自动替换。",
+        text="注：历史走势为基于当前综合评分回溯生成的演示走势（原始数据为截面快照）。",
         showarrow=False, font=dict(size=11, color=THEME_TEXT_SUB),
         xanchor="left",
     )

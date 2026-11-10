@@ -163,7 +163,10 @@ def _tech_badges() -> None:
     st.markdown(
         f'<div style="text-align:center;margin-top:28px;">{pills}</div>'
         f'<div style="text-align:center;margin-top:10px;font-size:13px;'
-        f'color:{THEME_TEXT_SUB};">🖥️ 单机可运行 · 数据不出域</div>',
+        f'color:{THEME_TEXT_SUB};">🖥️ 单机可运行 · 原始数据不出域</div>',
+        f'<div style="text-align:center;margin-top:6px;font-size:12px;'
+        f'color:{THEME_TEXT_SUB};">演示数据为团队自建模拟学情数据集（240 条 / 68 字段），'
+        f'不含任何真实学生信息</div>',
         unsafe_allow_html=True,
     )
 

@@ -7,6 +7,8 @@ __pycache__/
 # 本地数据库与生成的演示数据（含模拟学情，不入库）
 local_database/*.db
 data_source/*.csv
+# 导入模板需随代码交付，单独放行
+!data_source/import_template.csv
 
 # 云端大模型密钥配置（含 API Key，绝不入库）
 config_setting/llm_config.yaml
