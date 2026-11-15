@@ -3,7 +3,7 @@
 一个**本地化部署**、可实时调用云端大模型 API 进行数据分析与 AI 解读，并呈现学生个人 / 班级成长画像报告的动态网页应用。
 所有数据分析和可视化图表均由后端动态计算与生成，而非前端写死的静态数据。
 
-## 技术栈
+## 技术栈（全py）
 
 | 层次 | 技术 |
 |------|------|
@@ -74,13 +74,9 @@ python data_source/generate_mock_data.py
 
 如需替换为自己的数据集：教师端「配置管理 → 数据导入」上传 CSV（字段模板见 `data_source/import_template.csv`）。导入前自动备份数据库，导入后自动重算六维评分 / 聚类 / 风险等级；教务 / 一卡通 / 第二课堂接口仅作适配器预留，尚未实现自动同步。
 
-### 3. 配置 AI 大模型（可选，创新点功能需要）
+### 3. 配置 AI 大模型（可选）
 
 `config_setting/llm_config.yaml` 已预置好，默认对接**火山方舟 · Doubao-Seed-2.0-mini**（`doubao-seed-2-0-mini-260428`），**只需填入 API Key**：
-
-1. 到火山方舟控制台（console.volcengine.com/ark）创建 API Key，并**在模型广场开通 `doubao-seed-2-0-mini-260428`**。
-2. 把 Key 粘贴进 `config_setting/llm_config.yaml` 的 `api_key` 一行（`enabled` 已为 `true`）。
-3. 验证连通性（用项目自带的检测函数，会直接告诉你失败原因）：
 
 ```bash
 python -c "from ai_insight import llm_client as c; print(c.test_connection())"
@@ -180,32 +176,6 @@ streamlit run web_main/app.py
 - `config_setting.load_config_from_json()`：预留教务系统 / 配置中心下发 JSON 配置。
 - `analysis_core/pipeline.run_pipeline(records=...)`：支持直接传入外部记录进行实时分析。
 - `ai_insight/llm_client.py`：抽象 LLM 接口，可扩展更多模型接入方式。
-
-## 常见问题（FAQ）
-
-**Q1：运行 `streamlit run` 后登录不进去？**
-请确认已先执行 `python data_source/generate_mock_data.py` 生成数据；学号格式为纯数字（如 `202310100001`），密码 `stu123456`。
-
-**Q2：AI 功能点不动 / 显示"未启用"？**
-请检查 `config_setting/llm_config.yaml` 的 `api_key` 是否已填写（`enabled` 应为 `true`）。未配置或调用失败时系统会优雅降级（AI 诊断回退为规则式建议），且界面上会**直接显示失败原因**。
-
-**Q3：调用云端模型时报错？**
-界面提示与 `llm_client.get_last_error()` 会给出具体原因，常见几类：
-- `HTTP 401 鉴权失败` —— API Key 无效或格式不对，重新复制；
-- `HTTP 404 模型未开通` —— 方舟控制台里该模型尚未「开通」；
-- `HTTP 429` —— 触发限流或免费额度用尽；
-- `HTTP 400 请求参数被拒绝` —— 多为 `thinking` / `reasoning_effort` 字段不被该模型支持，客户端会自动去掉这两个字段重试一次。
-另需确认 `base_url` / `model`（用模型广场里的 Model ID）填写正确，且网络能访问对应服务商。
-
-**Q4：想重置所有数据？**
-删除 `local_database/student_growth.db` 与 `data_source/raw_student_data.csv`，重新执行第 2 步即可。
-
-**Q5：想调整指标体系 / 权重 / 阈值？**
-所有维度、二级指标、权重与风险阈值集中在 `config_setting/__init__.py`：
-- `DIMENSION_WEIGHTS`：六维综合权重
-- `DIMENSION_SUBSCORES`：每个维度下二级指标的字段、归一化区间与维度内权重
-- `RiskThreshold`：风险触发阈值
-修改后重新执行分析流水线即可生效，无需改动其他模块。
 
 ## 说明
 
