@@ -1,4 +1,4 @@
-"""local_database ORM 操作模块。
+"""local_database ORM 操作模块
 
 以学生 / 教师 / 备注三张表为核心的轻量 ORM 封装。
 所有对外读取接口默认经过脱敏与权限过滤，保证隐私安全要求。
@@ -113,7 +113,7 @@ def upsert_student(record: Dict) -> None:
 
 
 def bulk_upsert_students(records: List[Dict]) -> None:
-    """批量写入学生记录（事务提交）。"""
+    """批量写入学生记录（事务提交）"""
     conn = db_init.get_connection()
     try:
         for record in records:
@@ -133,7 +133,7 @@ def bulk_upsert_students(records: List[Dict]) -> None:
 
 
 def save_teacher_note(student_id: str, teacher_id: str, note: str, mark_level: str) -> None:
-    """保存教师对学生的备注 / 标记。"""
+    """保存教师对学生的备注 / 标记"""
     conn = db_init.get_connection()
     try:
         conn.execute(
@@ -184,7 +184,7 @@ def upsert_cluster_meta(
 
 
 def get_cluster_meta(grade: int, scope: str) -> Optional[Dict]:
-    """读取单条聚类模型元信息，不存在返回 None。"""
+    """读取单条聚类模型元信息，不存在返回 None"""
     conn = db_init.get_connection()
     try:
         row = conn.execute(
@@ -205,7 +205,7 @@ def get_cluster_meta(grade: int, scope: str) -> Optional[Dict]:
 
 
 def list_cluster_meta(grade: Optional[int] = None) -> List[Dict]:
-    """列出聚类模型元信息（可按年级过滤）。"""
+    """列出聚类模型元信息（可按年级过滤）"""
     conn = db_init.get_connection()
     try:
         if grade is None:
@@ -251,7 +251,7 @@ def authenticate_student(student_id: str, password: str) -> Optional[Dict]:
 
 
 def authenticate_teacher(teacher_id: str, password: str) -> Optional[Dict]:
-    """教师登录认证。成功返回教师记录，失败返回 None。"""
+    """教师登录认证。成功返回教师记录，失败返回 None"""
     conn = db_init.get_connection()
     try:
         row = conn.execute(
@@ -270,7 +270,7 @@ def authenticate_teacher(teacher_id: str, password: str) -> Optional[Dict]:
 # 读取操作（权限 + 脱敏）
 # ---------------------------------------------------------------------------
 def get_student_self(student_id: str) -> Optional[Dict]:
-    """学生查看本人完整画像（本人授权，不脱敏）。"""
+    """学生查看本人完整画像（本人授权，不脱敏）"""
     conn = db_init.get_connection()
     try:
         row = conn.execute(
@@ -282,7 +282,7 @@ def get_student_self(student_id: str) -> Optional[Dict]:
 
 
 def get_student_masked(student_id: str) -> Optional[Dict]:
-    """教师视角查看单个学生（脱敏 + 仅显示管辖班级）。返回脱敏记录。"""
+    """教师视角查看单个学生（脱敏 + 仅显示管辖班级）返回脱敏记录"""
     conn = db_init.get_connection()
     try:
         row = conn.execute(
@@ -298,7 +298,7 @@ def get_student_masked(student_id: str) -> Optional[Dict]:
 def list_students_by_classes(
     class_names: List[str], keyword: str = "", sort_by: str = "composite_score", desc: bool = True
 ) -> List[Dict]:
-    """教师查看管辖班级学生列表（脱敏 + 搜索 + 排序）。
+    """教师查看管辖班级学生列表（脱敏 + 搜索 + 排序）
 
     keyword 同时匹配脱敏前的姓名 / 学号（便于教师用真实信息检索），
     但返回结果仍做脱敏展示。
