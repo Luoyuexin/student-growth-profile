@@ -130,7 +130,7 @@ def _login_form(role: str, form_key: str) -> None:
         if role == "student":
             st.markdown(f"**🎓 学生通道**　查看个人六维成长画像、等级与 AI 诊断")
             account_label = "学号"
-            err_hint = "学号或密码错误。演示账号密码：学号 + stu123456"
+            err_hint = "学号或密码错误。演示账号：2023010001 / stu123456"
         else:
             st.markdown(f"**🧑‍🏫 教师 / 辅导员通道**　班级画像、风险预警与配置管理")
             account_label = "工号"
@@ -163,7 +163,7 @@ def _tech_badges() -> None:
         f'<div style="text-align:center;margin-top:10px;font-size:13px;'
         f'color:{C.THEME_TEXT_SUB};">🖥️ 单机可运行 · 原始数据不出域</div>'
         f'<div style="text-align:center;margin-top:6px;font-size:12px;'
-        f'color:{C.THEME_TEXT_SUB};">演示数据为团队自建模拟学情数据集（240 条 / 68 字段），'
+        f'color:{C.THEME_TEXT_SUB};">演示数据为团队自建模拟学情数据集，'
         f'不含任何真实学生信息</div>',
         unsafe_allow_html=True,
     )
@@ -172,7 +172,7 @@ def _tech_badges() -> None:
 def _skin_popover() -> None:
     """右上角皮肤切换器：按钮由全站主题 CSS 着色，两套皮肤都协调。"""
     with st.popover("🎨 皮肤", use_container_width=True):
-        st.caption("界面主题（即时生效）")
+        st.caption("界面主题")
         c1, c2 = st.columns(2)
         with c1:
             if st.button("雾蓝", use_container_width=True, key="skin_blue_btn"):
@@ -188,8 +188,8 @@ def _skin_popover() -> None:
 
 
 def _logout_button() -> bool:
-    """页面级退出按钮 + 皮肤切换（不使用侧栏，避免登录后自动展开）。"""
-    # 顶部留出 Streamlit 固定工具栏高度，避免右上角 popover 被 header 遮挡
+    """页面级退出按钮 + 皮肤切换。"""
+    # 顶部留出 Streamlit 固定工具栏高度
     st.markdown("<div style='height:40px'></div>", unsafe_allow_html=True)
     _, c_skin, c_out = st.columns([10, 1.4, 1])
     with c_skin:
@@ -203,7 +203,7 @@ def main() -> None:
         page_title=PLATFORM_NAME, layout="wide",
         initial_sidebar_state="collapsed",
     )
-    # 皮肤：每次脚本执行开头同步当前会话的选择（色板为进程级共享，需按会话重设）
+    # 皮肤：每次脚本执行开头同步当前会话的选择
     if "skin" not in st.session_state:
         st.session_state.skin = C.DEFAULT_SKIN
     C.set_skin(st.session_state.skin)
@@ -253,9 +253,8 @@ def main() -> None:
     # 演示账号提示
     with st.expander("演示账号（点击查看）"):
         st.markdown(
-            "- **学生端**：学号 + 密码 `stu123456`\n"
-            "  （可用学号如 `202310100001`，详见数据库）\n"
-            "- **教师端**：工号 `T2023001` 或 `T2023002`，密码 `teacher123`"
+            "- **学生端**：`2023010001` + `stu123456`\n"
+            "- **教师端**：工号 `T2023001` 或 `T2023002`，+ `teacher123`"
         )
     st.caption("提示：「重新执行分析流水线」入口已移至教师端「配置管理」页。")
 
