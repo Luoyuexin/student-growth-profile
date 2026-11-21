@@ -71,7 +71,7 @@ RL_FONT = _register_reportlab_cjk()
 
 
 def _buf_from_fig(fig) -> io.BytesIO:
-    """将 matplotlib Figure 导出为 PNG 字节流并关闭图形。"""
+    """将 matplotlib Figure 导出为 PNG 字节流并关闭图形"""
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
     plt.close(fig)
@@ -80,7 +80,7 @@ def _buf_from_fig(fig) -> io.BytesIO:
 
 
 def _pdf_radar(student: dict) -> io.BytesIO:
-    """六维能力雷达图（matplotlib polar）。"""
+    """六维能力雷达图（matplotlib polar）"""
     labels = [DIMENSION_LABELS[d] for d in DIMENSION_ORDER]
     vals = [float(student.get(f"score_{d}", 0) or 0) for d in DIMENSION_ORDER]
     angles = [n / float(len(labels)) * 2 * 3.14159265 for n in range(len(labels))]
@@ -100,7 +100,7 @@ def _pdf_radar(student: dict) -> io.BytesIO:
 
 
 def _pdf_distribution(distribution: dict) -> io.BytesIO:
-    """风险等级分布柱状图（matplotlib，替代 kaleido）。"""
+    """风险等级分布柱状图"""
     labels_order = ["正常", "关注", "高危"]
     labels = [l for l in labels_order if l in distribution] + \
              [l for l in distribution if l not in labels_order]
@@ -117,7 +117,7 @@ def _pdf_distribution(distribution: dict) -> io.BytesIO:
 
 
 def _pdf_trend(student_id: str, current_score: float) -> io.BytesIO:
-    """成长趋势折线图（matplotlib，走势与网页端同源同种子）。"""
+    """成长趋势折线图"""
     scores = chart_builder.trend_scores(student_id, current_score, semesters=6)
     labels = [f"第{i}学期" for i in range(1, 7)]
 
@@ -130,7 +130,7 @@ def _pdf_trend(student_id: str, current_score: float) -> io.BytesIO:
 
 
 def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_report: str = None) -> str:
-    """导出单个学生画像报告 PDF。"""
+    """导出单个学生画像报告 PDF"""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import cm
     from reportlab.lib import colors
@@ -162,7 +162,7 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     story.append(Paragraph("学生个人成长画像报告", title_style))
     story.append(Spacer(1, 6))
     story.append(Paragraph(
-        f"学号（脱敏）：{student.get('student_id')}　|　姓名（脱敏）：{student.get('name')}　|　"
+        f"学号：{student.get('student_id')}　|　姓名：{student.get('name')}　|　"
         f"班级：{student.get('class_name')}", body))
     story.append(Spacer(1, 10))
 
@@ -186,7 +186,7 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     story.append(card)
     story.append(Spacer(1, 12))
 
-    # 六维得分概览表（含维度等级）
+    # 六维得分概览表
     story.append(Paragraph("一、六维得分与等级", h_style))
     dim_rows = [["维度", "得分", "等级"]]
     for d in DIMENSION_ORDER:
@@ -224,7 +224,7 @@ def export_student_pdf(student: dict, advice: list[str], save_path: str, ai_repo
     for i, a in enumerate(advice, 1):
         story.append(Paragraph(f"{i}. {a}", body))
 
-    # AI 成长诊断（可选，含证据引用）
+    # AI 成长诊断
     if ai_report:
         story.append(Spacer(1, 8))
         story.append(Paragraph("五、AI 成长诊断报告（结论附证据编号）", h_style))
