@@ -1,6 +1,6 @@
-"""data_source 模拟学情数据生成脚本。
+"""data_source 模拟学情数据生成脚本
 
-生成贴近真实分布的学情数据，写入 CSV（data_source/raw_student_data.csv）
+生成贴近真实分布的模拟学情数据，写入 CSV（data_source/raw_student_data.csv）
 并可选写入 SQLite 数据库，便于本地一键演示。
 
 数据维度覆盖：六维 32 项二级指标（学业发展 / 身心健康 / 社会参与 /
