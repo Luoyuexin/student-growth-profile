@@ -4,7 +4,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# 本地数据库与生成的演示数据（含模拟学情，不入库）
+# 本地数据库与生成的演示数据（含模拟数据，不入库）
 local_database/*.db
 data_source/*.csv
 # 导入模板需随代码交付，单独放行
@@ -21,6 +21,3 @@ venv/
 .vscode/
 .idea/
 .DS_Store
-
-# WorkBuddy 本地记忆（不对外）
-.workbuddy/
