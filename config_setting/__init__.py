@@ -263,7 +263,7 @@ _ACTIVE_SKIN = DEFAULT_SKIN
 
 
 def set_skin(name: str) -> None:
-    """切换当前皮肤；未知名称忽略，保证默认可用。"""
+    """切换当前皮肤"""
     global _ACTIVE_SKIN
     if name in _SKINS:
         _ACTIVE_SKIN = name
@@ -296,9 +296,7 @@ def build_theme_css() -> str:
     避免升级后样式静默失效。
     """
     p = get_palette()
-    # Streamlit 用内联 linear-gradient 画滑块「已填充段」，渐变色写死为
-    # config.toml 的 primaryColor（雾蓝）。雾蓝皮肤下与主题一致，保留原样；
-    # 切到其他皮肤时必须抹掉渐变，否则换肤后仍是一条蓝线，只能改用暖色轨道，
+    # 切到其他皮肤时须抹掉渐变，否则换肤后仍是一条蓝线，只能改用暖色轨道，
     # 由金色拇指指示当前位置。
     slider_track_reset = "" if _ACTIVE_SKIN == SKIN_MIST_BLUE else (
         'div[data-testid="stSlider"] div[class*="e23vpic5"] { '
