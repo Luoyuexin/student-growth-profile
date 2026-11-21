@@ -122,10 +122,7 @@ def _wc_small_pool() -> list:
 
 def _wc_color_func(word, font_size, position, orientation,
                    random_state=None, **kwargs):
-    """词云取色：字号越大颜色越深，整体限制在主题低饱和色板内。
-
-    小字号词只用深色系，避免浅色小字看不清；色池全部按当前皮肤实时取。
-    """
+    """词云取色：字号越大颜色越深，整体限制在主题低饱和色板内"""
     if random_state is None:
         random_state = random
     if font_size > 90:
@@ -141,17 +138,13 @@ def _wc_color_func(word, font_size, position, orientation,
 # 六维雷达图
 # ---------------------------------------------------------------------------
 def _rgba(hex_color: str, opacity: float) -> str:
-    """HEX -> rgba() 字符串（用于半透明填充叠加）。"""
+    """HEX -> rgba() 字符串（用于半透明填充叠加）"""
     r, g, b = _hex_to_rgb(hex_color)
     return f"rgba({r},{g},{b},{opacity})"
 
 
 def build_radar(row: dict, ref_means: dict = None) -> go.Figure:
-    """构建六维度能力雷达图。
-
-    ref_means: 可选，{标签: {维度键: 分值}}，用于在雷达图上叠加班级 / 年级均值
-    参考面（半透明填充叠加，图例可单独点击显隐每条参考系列）。
-    """
+    """构建六维度能力雷达图"""
     dims = [DIMENSION_LABELS[d] for d in DIMENSION_ORDER]
     keys = DIMENSION_ORDER
     vals = [float(row.get(f"score_{k}", 0) or 0) for k in keys]
@@ -203,12 +196,7 @@ def build_radar(row: dict, ref_means: dict = None) -> go.Figure:
 # 成长趋势
 # ---------------------------------------------------------------------------
 def trend_scores(seed_key: str, current_score: float, semesters: int = 6) -> list[float]:
-    """基于当前综合评分确定性回溯历史学期走势（截面快照的演示走势）。
-
-    用 md5 学号派生种子而非内置 hash()：后者每个进程随机化
-    （PYTHONHASHSEED），会导致同一学生每次打开页面趋势都不一样。
-    网页端与 PDF 端共用本函数，保证两处图形一致。
-    """
+    """基于当前综合评分确定性回溯历史学期走势"""
     import hashlib
     seed = int(hashlib.md5(str(seed_key).encode("utf-8")).hexdigest()[:12], 16)
     rng = random.Random(seed % (10 ** 8))
@@ -221,11 +209,7 @@ def trend_scores(seed_key: str, current_score: float, semesters: int = 6) -> lis
 
 
 def build_trend(student_id: str, current_score: float, semesters: int = 6) -> go.Figure:
-    """构建成长趋势折线图。
-
-    由于原始数据为截面快照，这里基于当前综合评分用确定性随机游走
-    回溯生成历史学期走势（仅用于演示趋势形态）。
-    """
+    """构建成长趋势折线图"""
     scores = trend_scores(student_id, current_score, semesters)
 
     labels = [f"第{i}学期" for i in range(1, semesters + 1)]
@@ -321,12 +305,7 @@ def build_distribution(distribution: dict, chart_type: str = "pie") -> go.Figure
 # 二级指标柱状图
 # ---------------------------------------------------------------------------
 def build_sub_bar(sub_scores: dict, dim_label: str, dim_color: str | None = None) -> go.Figure:
-    """构建某维度下二级指标得分柱状图。
-
-    sub_scores: {二级标签: 得分(0~100)}。
-    dim_color: 该维度主题色。传入时所有柱子统一用该纯色（学生端维度页，
-               使页面与所选维度主题色一致）；不传时沿用按得分深浅的橄榄绿色阶。
-    """
+    """构建某维度下二级指标得分柱状图"""
     labels = list(sub_scores.keys())
     vals = [float(sub_scores[k]) for k in labels]
 
@@ -527,7 +506,7 @@ def build_wordcloud(tags: list, width: int = 660, height: int = 680, skin: str =
 
 
 # ---------------------------------------------------------------------------
-# 定 K 过程曲线（肘部法则 SSE + 轮廓系数 + 合成得分，作品书 3.4.1）
+# 定 K 过程曲线（肘部法则 SSE + 轮廓系数 + 合成得分）
 # ---------------------------------------------------------------------------
 def build_k_selection_curve(details: dict, grade: int | None = None) -> go.Figure | None:
     """把自动定 K 过程画成双轴曲线图。
