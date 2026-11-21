@@ -1,6 +1,6 @@
 """ai_insight 学情分析服务（项目创新点：AI 大模型驱动分析与可视化解读）。
 
-封装 F1~F5 五大 AI 功能，落实作品书 4.4.2 的可溯源三道防线：
+封装五大 AI 功能，落实可溯源三道防线：
   ① 事实卡片化：先把数据结构化为带唯一编号的事实卡片（llm_client.build_*_facts）；
   ② 强制引用 + 后校验：要求每条数值结论标注 [Fxx]，输出后规则校验并剔除无据表述；
   ③ 知识锚定：手册提醒卡片携带规则编号，建议须锚定可量化条款。
@@ -293,7 +293,7 @@ def chat_answer(question: str, safe_context: Dict[str, Any],
     safe_context 为学生脱敏记录（经网关）或班级聚合统计，无任何 PII；
     亦可在 safe_context["fact_cards"] 预置现成卡片（学生端构建，绕开网关对
     手册提醒字段的裁剪）。history 为近几轮 {"role", "content"} 列表，
-    用于理解「那第二呢」「为什么」这类追问。
+    用于理解「为什么」这类追问。
     """
     prompts = client.load_prompts()
     system = _system(
