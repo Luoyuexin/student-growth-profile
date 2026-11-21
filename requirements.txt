@@ -3,7 +3,7 @@
 # 已在 Python 3.14 + pandas 3.x / scikit-learn 1.9 / streamlit 1.61 下验证
 
 # Web 框架
-streamlit>=1.30.0
+streamlit>=1.50.0
 
 # 数据分析
 pandas>=1.5.0
