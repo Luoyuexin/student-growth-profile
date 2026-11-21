@@ -1,6 +1,6 @@
-"""analysis_core 数据清洗模块。
+"""analysis_core 数据清洗模块
 
-职责（作品书 2.2 / 3.3 节）：
+职责：
 1. 读取原始学情记录（dict / DataFrame）。
 2. 对数值字段设定上下界并裁剪越界值（55 个数值字段）。
 3. 缺失值填充：活动 / 参与类指标缺失视为「未参与」按 0 处理；
@@ -77,7 +77,6 @@ NUMERIC_FIELDS = {
 }
 
 # 活动 / 参与 / 奖惩类「计数」字段：缺失即「未参与 / 未发生」，按 0 填充
-# （作品书 3.3：活动类指标缺失视为未参与按 0 处理）
 ACTIVITY_ZERO_FIELDS = {
     "competition_awards", "second_class_count", "volunteer_hours", "club_role",
     "social_practice_done", "labor_hours", "academic_tech_score",
