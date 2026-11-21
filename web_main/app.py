@@ -130,7 +130,7 @@ def _login_form(role: str, form_key: str) -> None:
         if role == "student":
             st.markdown(f"**🎓 学生通道**　查看个人六维成长画像、等级与 AI 诊断")
             account_label = "学号"
-            err_hint = "学号或密码错误。演示账号：2023010001 / stu123456"
+            err_hint = "学号或密码错误。演示账号：202310100001 / stu123456"
         else:
             st.markdown(f"**🧑‍🏫 教师 / 辅导员通道**　班级画像、风险预警与配置管理")
             account_label = "工号"
@@ -253,7 +253,7 @@ def main() -> None:
     # 演示账号提示
     with st.expander("演示账号（点击查看）"):
         st.markdown(
-            "- **学生端**：`2023010001` + `stu123456`\n"
+            "- **学生端**：`202310100001` + `stu123456`\n"
             "- **教师端**：工号 `T2023001` 或 `T2023002`，+ `teacher123`"
         )
     st.caption("提示：「重新执行分析流水线」入口已移至教师端「配置管理」页。")
