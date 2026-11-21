@@ -1,4 +1,4 @@
-"""web_main 学生端页面。
+"""web_main 学生端页面
 
 包含：
 - 顶栏切换：综合总览 + 六个维度分页面（学业/身心/社会参与/生活适应/品德/非认知）+ AI 助手。
@@ -180,7 +180,7 @@ def _get_meta(student: dict, scope: str) -> dict | None:
 
 
 def _gap_to_next(student: dict, scope: str, score: float, level_text) -> float | None:
-    """按年级聚类边界计算「距上一等级还差多少分」（作品书 3.4.2）。"""
+    """按年级聚类边界计算「距上一等级还差多少分」。"""
     if not level_text:
         return None
     meta = _get_meta(student, scope)
@@ -374,14 +374,11 @@ def _render_level_explain(student: dict, dim_scores: dict, composite: float) -> 
 
 
 def _render_reminders(student: dict) -> None:
-    """智能提醒：依据本科生手册硬性规定，只列出需要提醒 / 督促的事项。
-
-    已达标项不逐条罗列（避免页面变成手册条文清单）。
-    """
+    """智能提醒：依据本科生手册硬性规定，只列出需要提醒 / 督促的事项。"""
     items = _load_json(student.get("handbook_reminders"), [])
     card = _card("智能提醒 · 依据本科生手册硬性规定", accent=C.THEME_PRIMARY)
     with card:
-        st.caption("依据《2024 级本科生手册》12 条可编程条款自动生成")
+        st.caption("依据《2024 级本科生手册》12 条规矩自动生成")
         if not items:
             st.markdown(
                 f'<div style="background:{C.RISK_SOFT_BG["正常"]};border:1px solid {C.RISK_SOFT_BORDER["正常"]};'
@@ -681,7 +678,7 @@ def _render_overview(student: dict) -> None:
                 "- **非认知能力**：手册无统一测量指标，设计取自作业提交时间戳、"
                 "打卡连续性与问卷测评；当前为模拟数据，仅作趋势提示，不构成心理评估结论\n\n"
                 "平台当前采用手动导入数据集方式；教务 / 一卡通 / 第二课堂接口"
-                "仅作适配器预留，需在合规授权后启用（《作品书》4.5.3、5.3）。"
+                "仅作适配器预留，需在合规授权后启用。"
             )
 
     # 底部：AI 诊断 + PDF 导出
