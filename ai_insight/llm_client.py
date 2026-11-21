@@ -26,11 +26,11 @@ CONFIG_DIR = Path(__file__).resolve().parent.parent / "config_setting"
 LLM_CONFIG_PATH = CONFIG_DIR / "llm_config.yaml"
 PROMPTS_PATH = CONFIG_DIR / "prompts.yaml"
 
-# 绝对禁止外传的字段（脱敏网关黑名单，作品书 4.4.3：四类个人标识字段完全剔除）
+# 绝对禁止外传的字段（脱敏网关黑名单）
 PII_FIELDS = {"name", "student_id", "password_hash", "gender"}
 
-# 原始流水 / 自由文本大字段：即使不含 PII 也不直接外发，
-# 只允许以「事实卡片」中的统计结果形式外传（作品书 4.4.2 防线①）。
+# 原始流水 / 自由文本大字段：即使不含 PII 也不直接外发
+# 只允许以「事实卡片」中的统计结果形式外传
 RAW_BLOB_FIELDS = {
     "campus_run_records", "fitness_history", "aesthetic_detail",
     "handbook_reminders", "handbook_hits",
@@ -59,21 +59,21 @@ class LLMConfig:
     temperature: float = 0.6
     max_tokens: int = 3000
     timeout: int = 90
-    # 深度思考策略：auto（按模型自动判断）/ on（强制开启）/ off（关闭）
-    # 注意：GLM-5.3、GLM-5.3-Flash 等推理模型不支持关闭思考，传 disabled 会直接报错，
-    #       因此默认用 auto，由 _resolve_thinking() 按模型名判断。
+    # 深度思考策略：auto / on / off 
+    # 由于 GLM-5.3、GLM-5.3-Flash 等推理模型不支持关闭思考，传 disabled 会直接报错
+    # 因此默认用 auto，由 _resolve_thinking() 按模型名判断。
     thinking: str = "auto"
     # 思考深度，仅部分 GLM 模型支持（low / high / max），留空则不发送该字段
     reasoning_effort: str = ""
 
 
 # 已知「思考始终开启、不允许关闭」的模型名片段：这类模型若传 thinking={"type":"disabled"}
-# 会被服务端直接拒绝，必须传 enabled（或干脆不传）。
+# 会被服务端直接拒绝，必须传 enabled（或不传）
 THINKING_ALWAYS_ON = ("glm-5.3", "glm-5-3", "glm-5.2", "glm-5-2")
 
 
 def _resolve_thinking(cfg: LLMConfig) -> Optional[Dict[str, Any]]:
-    """按配置与模型名决定 thinking 字段；返回 None 表示不发送该字段。"""
+    """按配置与模型名决定 thinking 字段；返回 None 表示不发送该字段"""
     mode = (cfg.thinking or "auto").strip().lower()
     if mode == "off":
         return {"type": "disabled"}
@@ -101,7 +101,7 @@ def _set_error(msg: Optional[str]) -> None:
 
 
 def mask_key(key: str) -> str:
-    """脱敏展示 API Key，避免在界面 / 日志中泄露完整密钥。"""
+    """脱敏展示 API Key，避免泄露密钥。"""
     key = (key or "").strip()
     if len(key) <= 8:
         return "*" * len(key)
@@ -109,7 +109,7 @@ def mask_key(key: str) -> str:
 
 
 def _parse_thinking(raw: Any) -> str:
-    """解析 thinking 配置，兼容旧的布尔写法（true/false）。"""
+    """解析 thinking 配置，兼容布尔写法（true/false）。"""
     if isinstance(raw, bool):
         return "on" if raw else "off"
     text = str(raw or "").strip().lower()
@@ -136,7 +136,7 @@ def load_llm_config() -> LLMConfig:
 
 
 def load_prompts() -> Dict[str, str]:
-    """加载提示词模板。"""
+    """提示词模板"""
     if not PROMPTS_PATH.exists():
         return {}
     with open(PROMPTS_PATH, "r", encoding="utf-8") as f:
@@ -144,7 +144,7 @@ def load_prompts() -> Dict[str, str]:
 
 
 def is_enabled() -> bool:
-    """云端大模型是否已正确配置。"""
+    """云端大模型是否已正确配置"""
     cfg = load_llm_config()
     return bool(cfg.enabled and cfg.base_url and cfg.api_key and cfg.model)
 
@@ -231,7 +231,7 @@ def _http_post(url: str, headers: Dict[str, str], payload: Dict[str, Any],
                timeout: int) -> Tuple[int, str]:
     """最小 HTTP POST，返回 (状态码, 响应正文)。
 
-    优先使用 requests（本机已具备）；若环境缺失则退回标准库 urllib，
+    优先使用 requests ；若环境缺失则退回标准库 urllib，
     全程不依赖 openai SDK —— 避免 SDK 与 httpx 之间的版本冲突导致调用失败。
     """
     try:
@@ -379,7 +379,7 @@ def _json_block(data: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 可溯源机制（作品书 4.4.2 三道防线）
+# 可溯源机制
 #   ① 事实卡片化：六维得分 / 等级 / 风险 / 手册命中项 -> 带唯一编号的卡片
 #   ② 强制引用 + 后校验：要求模型每条结论标注 [Fxx]，输出后规则校验，
 #      剔除「含数值断言却无有效证据引用」的句子
