@@ -1,4 +1,4 @@
-"""analysis_core 模块入口。"""
+"""analysis_core 模块入口"""
 
 from analysis_core.data_clean import clean_records, clean_dataframe
 from analysis_core.normalize import (
