@@ -1,11 +1,11 @@
-"""data_source 数据集适配器层（对应《作品书》4.5.3 已知不足、5.3 长期规划）。
+"""data_source 数据集适配器层
 
 统一契约：任何数据源只需实现 ``DatasetAdapter.load() -> list[dict]``，
 产出的记录字段与 ``data_source.generate_mock_data.FIELDS`` 字段契约对齐，
 即可交给 ``analysis_core.pipeline.run_pipeline(records=...)`` 完成全量分析。
 分析层因此与具体数据源解耦，替换数据源不需要改动评分 / 聚类代码。
 
-当前状态（与两份 PDF 口径严格一致）：
+当前状态：
 - 已实现：MockDatasetAdapter（团队自建模拟数据）、CsvDatasetAdapter（手动导入 CSV）。
 - 仅作设计预留、尚未实现自动同步：教务系统 / 一卡通 / 第二课堂平台适配器。
   真实接入须在合规授权框架下完成，不在本版本范围内；不调取校内真实隐私数据。
@@ -80,7 +80,7 @@ class CsvDatasetAdapter(DatasetAdapter):
     """
 
     name = "csv_file"
-    source_label = "手动导入 CSV 数据集（当前数据入口）"
+    source_label = "手动导入 CSV 数据集"
     implemented = True
 
     def load(self, data: bytes) -> List[Dict]:
@@ -102,7 +102,7 @@ class AcademicSystemAdapter(DatasetAdapter):
 
     def load(self, *args: Any, **kwargs: Any) -> List[Dict]:
         raise NotImplementedError(
-            "教务系统接口按《作品书》5.3 长期规划预留，尚未实现自动同步；"
+            "教务系统接口按长期规划预留，尚未实现自动同步；"
             "当前请使用 CsvDatasetAdapter 手动导入数据集。真实接入需合规授权。"
         )
 
@@ -116,7 +116,7 @@ class CampusCardAdapter(DatasetAdapter):
 
     def load(self, *args: Any, **kwargs: Any) -> List[Dict]:
         raise NotImplementedError(
-            "一卡通接口按《作品书》5.3 长期规划预留，尚未实现自动同步；"
+            "一卡通接口按长期规划预留，尚未实现自动同步；"
             "当前请使用 CsvDatasetAdapter 手动导入数据集。真实接入需合规授权。"
         )
 
@@ -130,7 +130,7 @@ class SecondClassAdapter(DatasetAdapter):
 
     def load(self, *args: Any, **kwargs: Any) -> List[Dict]:
         raise NotImplementedError(
-            "第二课堂平台接口按《作品书》5.3 长期规划预留，尚未实现自动同步；"
+            "第二课堂平台接口按长期规划预留，尚未实现自动同步；"
             "当前请使用 CsvDatasetAdapter 手动导入数据集。真实接入需合规授权。"
         )
 
