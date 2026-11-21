@@ -441,7 +441,7 @@ def _render_second_classroom(student: dict) -> None:
                     res["五部分"], res["上限"], part_colors,
                     float(res["总分"]), float(res["满分"]),
                 ),
-                use_container_width=True,
+                width="stretch",
             )
         with d2:
             rows = []
@@ -572,7 +572,7 @@ def _render_overview(student: dict) -> None:
             if sum(gm.values()) > 0:
                 ref["年级均值"] = gm
             st.plotly_chart(chart_builder.build_radar(student, ref_means=ref or None),
-                            use_container_width=True)
+                            width="stretch")
             if st.button("AI 解读雷达图", key="ai_radar"):
                 with st.spinner(SPINNER_AI):
                     txt, ok = ai.generate_chart_interpret(student, "多维能力雷达图")
@@ -586,7 +586,7 @@ def _render_overview(student: dict) -> None:
         with card:
             st.plotly_chart(
                 chart_builder.build_trend(student.get("student_id", "x"), composite),
-                use_container_width=True)
+                width="stretch")
             if st.button("AI 解读趋势图", key="ai_trend"):
                 with st.spinner(SPINNER_AI):
                     txt, ok = ai.generate_chart_interpret(student, "成长趋势折线图")
@@ -797,7 +797,7 @@ def _render_dim_compare(student: dict, dim_key: str, dim_score: float) -> None:
         st.plotly_chart(
             chart_builder.build_compare_bar("本人", dim_score, refs,
                                             C.DIMENSION_COLORS[dim_key]),
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -935,7 +935,7 @@ def _render_dim_tree(student: dict, dim_key: str, dim_score: float, dim_level: s
             root, children, dim_color,
             orientation="v" if orientation == "纵向" else "h",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("色阶：深色 = 得分高（本维度同色系）；悬停节点查看权重 / 归一化区间 / "
                    "原始值 / 年级均值；图可拖拽平移与缩放。")
 
@@ -1026,7 +1026,7 @@ def _render_dimension(student: dict, dim_key: str) -> None:
         card = _card(f"{label} · 二级指标得分", accent=dim_color)
         with card:
             st.plotly_chart(chart_builder.build_sub_bar(sub_scores, label, dim_color=dim_color),
-                            use_container_width=True)
+                            width="stretch")
 
     st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
