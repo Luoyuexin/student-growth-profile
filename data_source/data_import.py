@@ -1,9 +1,9 @@
-"""data_source CSV 手动导入模块（对应《作品书》5.3「当前手动导入数据集」）。
+"""data_source CSV 手动导入模块（对应「当前手动导入数据集」）。
 
 职责：解析 CSV -> 字段校验与规范化 -> 备份数据库 -> 写入 SQLite ->
 调用 analysis_core.pipeline.run_pipeline 全量重算六维评分 / 聚类 / 风险等级。
 
-设计约束（与两份 PDF 口径一致）：
+设计约束：
 - 全程本地处理，不调取校内真实隐私数据；当前演示数据为团队自建模拟数据集。
 - 绝不调用 generate_mock_data.main()（其内部 init_database(force=True) 会删库重建）。
 - 分析结果字段一律由后端重算，不信任上传文件里的同名列。
@@ -35,7 +35,7 @@ from data_source.adapters import (  # noqa: E402
 )
 from local_database import db_init, orm_ops  # noqa: E402
 
-# 必填字段：缺一即阻断导入
+# 必填信息
 REQUIRED_FIELDS = ["student_id", "name", "grade", "class_name"]
 
 # 手册硬规则依赖的 JSON 字段，缺失时补空结构，保证判定引擎不报错
@@ -48,7 +48,7 @@ JSON_DEFAULTS = {
 # 只允许后端计算，上传文件里的同名列一律清空
 ANALYSIS_ONLY_FIELDS = ["handbook_hits", "handbook_reminders"]
 
-# 分年级 K-means 的建议最小样本量（作品书 3.4.3：按年级独立建模）
+# 分年级 K-means 的建议最小样本量
 MIN_GRADE_SAMPLES = 30
 
 
