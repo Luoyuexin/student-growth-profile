@@ -76,7 +76,7 @@ python data_source/generate_mock_data.py
 
 ### 3. 配置 AI 大模型（可选）
 
-从 `llm_config.example.yaml` 复制一份为 `llm_config.yaml`，填入 Key 并把 `enabled` 改为 `true`
+从 `llm_config.example.yaml` 复制一份为 `llm_config.yaml`，填入 Key 并把 `enabled` 改为 `true`，默认对接火山方舟 · Doubao-Seed-2.0-mini
 
 ```bash
 python -c "from ai_insight import llm_client as c; print(c.test_connection())"
