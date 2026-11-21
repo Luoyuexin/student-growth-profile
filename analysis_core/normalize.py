@@ -1,6 +1,6 @@
 """analysis_core 特征无量纲归一化模块。
 
-按作品书 3.3 节口径：
+实现标准：
 - 二级指标的 0~100 归一化（含负向指标反向）在 scoring.py 按
   config_setting.DIMENSION_SUBSCORES 的区间配置完成；
 - 本模块负责聚类前的 Min-Max 归一化：把六维（或综合）得分在
