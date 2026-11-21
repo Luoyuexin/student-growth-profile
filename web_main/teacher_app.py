@@ -204,7 +204,7 @@ def render_teacher_page(teacher: dict) -> None:
                 chart_type = st.radio("图表类型", ["饼图", "柱状图"], horizontal=True, key="dist_type")
                 fig = chart_builder.build_distribution(
                     distribution, chart_type="bar" if chart_type == "柱状图" else "pie")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
         with cc2:
             recs = orm_ops.get_records_for_analysis(classes)
@@ -230,7 +230,7 @@ def render_teacher_page(teacher: dict) -> None:
                         legend=dict(orientation="v", x=1.02, y=0.5,
                                     xanchor="left", yanchor="middle"),
                     )
-                    st.plotly_chart(pie, use_container_width=True)
+                    st.plotly_chart(pie, width="stretch")
 
         if recs:
             card = _card("🤖 AI 班级研判摘要")
@@ -299,7 +299,7 @@ def render_teacher_page(teacher: dict) -> None:
                      "level_overall", "cluster_type", "risk_level", "cluster_label"]]
                 df.columns = ["学号", "姓名", "班级", "综合评分",
                               "综合等级", "成长类型", "风险等级", "簇号"]
-                st.dataframe(df, use_container_width=True, height=320)
+                st.dataframe(df, width="stretch", height=320)
 
         card = _card("个体画像穿透查看")
         with card:
@@ -323,14 +323,14 @@ def render_teacher_page(teacher: dict) -> None:
                             rcard = _card("六维能力雷达")
                             with rcard:
                                 st.plotly_chart(chart_builder.build_radar(disp),
-                                                use_container_width=True)
+                                                width="stretch")
                         with c2:
                             tcard = _card("成长趋势")
                             with tcard:
                                 st.plotly_chart(
                                     chart_builder.build_trend(
                                         sid, float(disp.get("composite_score", 0) or 0)),
-                                    use_container_width=True)
+                                    width="stretch")
                         st.write(
                             f"综合评分：{(disp.get('composite_score') or 0):.1f}　"
                             f"综合等级：{disp.get('level_overall') or '—'}　"
@@ -484,7 +484,7 @@ def render_teacher_page(teacher: dict) -> None:
                         paper_bgcolor=C.THEME_CARD_BG, plot_bgcolor=C.THEME_CARD_BG,
                         font=dict(color=C.THEME_TEXT),
                     )
-                    st.plotly_chart(bar, use_container_width=True)
+                    st.plotly_chart(bar, width="stretch")
 
             with cc2:
                 card = _card("各专业风险等级分布")
@@ -509,7 +509,7 @@ def render_teacher_page(teacher: dict) -> None:
                         paper_bgcolor=C.THEME_CARD_BG, plot_bgcolor=C.THEME_CARD_BG,
                         font=dict(color=C.THEME_TEXT),
                     )
-                    st.plotly_chart(stack, use_container_width=True)
+                    st.plotly_chart(stack, width="stretch")
 
     # ===================== Tab5 年级分析树（六维 Treemap） =====================
     with tabs[4]:
@@ -590,7 +590,7 @@ def render_teacher_page(teacher: dict) -> None:
                                     kfig = chart_builder.build_k_selection_curve(
                                         m["details"], grade=grade)
                                     if kfig is not None:
-                                        st.plotly_chart(kfig, use_container_width=True)
+                                        st.plotly_chart(kfig, width="stretch")
                                 else:
                                     st.caption("定 K 过程明细尚未落库：重新执行一次分析流水线后，"
                                                "此处将展示 SSE / 轮廓系数 / 合成得分曲线。")
@@ -744,7 +744,7 @@ def _render_grade_tree_one(dim_key: str, means: dict, orientation: str,
     }
     fig = chart_builder.build_dimension_tree(root, children, dim_color,
                                              orientation=orientation)
-    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+    st.plotly_chart(fig, width="stretch", key=chart_key)
 
 
 def _render_grade_trees(classes: list[str]) -> None:
