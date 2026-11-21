@@ -138,7 +138,7 @@ def _login_form(role: str, form_key: str) -> None:
         with st.form(form_key):
             uid = st.text_input(account_label)
             pwd = st.text_input("密码", type="password")
-            submitted = st.form_submit_button("登录", use_container_width=True)
+            submitted = st.form_submit_button("登录", width="stretch")
             if submitted:
                 ok, user = _do_login(role, uid, pwd)
                 if ok:
@@ -171,16 +171,16 @@ def _tech_badges() -> None:
 
 def _skin_popover() -> None:
     """右上角皮肤切换器：按钮由全站主题 CSS 着色，两套皮肤都协调。"""
-    with st.popover("🎨 皮肤", use_container_width=True):
+    with st.popover("🎨 皮肤", width="stretch"):
         st.caption("界面主题")
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("雾蓝", use_container_width=True, key="skin_blue_btn"):
+            if st.button("雾蓝", width="stretch", key="skin_blue_btn"):
                 st.session_state.skin = C.SKIN_MIST_BLUE
                 C.set_skin(C.SKIN_MIST_BLUE)
                 st.rerun()
         with c2:
-            if st.button("拿破仑黄", use_container_width=True, key="skin_gold_btn"):
+            if st.button("拿破仑黄", width="stretch", key="skin_gold_btn"):
                 st.session_state.skin = C.SKIN_GOLD
                 C.set_skin(C.SKIN_GOLD)
                 st.rerun()
@@ -195,7 +195,7 @@ def _logout_button() -> bool:
     with c_skin:
         _skin_popover()
     with c_out:
-        return st.button("退出登录", key="global_logout", use_container_width=True)
+        return st.button("退出登录", key="global_logout", width="stretch")
 
 
 def main() -> None:
