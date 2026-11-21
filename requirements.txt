@@ -1,5 +1,5 @@
 # 学生成长画像分析系统 - 依赖清单
-# 目标运行版本：Python 3.14（锁定 3.14，见需求决策 Q4）
+# 目标运行版本：Python 3.14
 # 已在 Python 3.14 + pandas 3.x / scikit-learn 1.9 / streamlit 1.61 下验证
 
 # Web 框架
