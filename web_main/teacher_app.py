@@ -171,7 +171,6 @@ def render_teacher_page(teacher: dict) -> None:
     tabs = st.tabs(TEACHER_TABS)
 
     # 班级画像明细：页签会同时求值，这里集中取一次，供画像 / 宏观研判 / AI 对话共用。
-    # （此前 recs 只在个别页签分支内赋值，切到 AI 对话助手时直接报 UnboundLocalError）
     recs = orm_ops.get_records_for_analysis(classes)
 
     # ===================== Tab1 班级整体画像 =====================
@@ -298,7 +297,7 @@ def render_teacher_page(teacher: dict) -> None:
                 df = pd.DataFrame(students)[
                     ["student_id", "name", "class_name", "composite_score",
                      "level_overall", "cluster_type", "risk_level", "cluster_label"]]
-                df.columns = ["学号(脱敏)", "姓名(脱敏)", "班级", "综合评分",
+                df.columns = ["学号", "姓名", "班级", "综合评分",
                               "综合等级", "成长类型", "风险等级", "簇号"]
                 st.dataframe(df, use_container_width=True, height=320)
 
@@ -309,7 +308,7 @@ def render_teacher_page(teacher: dict) -> None:
             else:
                 options = [f"{s['name']} / {s['student_id']}" for s in students]
                 selected_idx = st.selectbox(
-                    "选择学生（脱敏）", range(len(options)),
+                    "选择学生", range(len(options)),
                     format_func=lambda i: options[i], key="drill_select")
                 if selected_idx is not None:
                     # 展示用脱敏学号，查询用内部主键（脱敏字段无法直接作为主键检索）
@@ -349,8 +348,7 @@ def render_teacher_page(teacher: dict) -> None:
                             bars.append(_progress_bar(label, score, C.DIMENSION_COLORS[d]))
                         st.markdown("".join(bars), unsafe_allow_html=True)
 
-                        # 个体画像报告：复用 F1 AI 诊断链路（事实卡片→强制引用→后校验），
-                        # 按钮 / 会话 key 一律用原始学号，避免脱敏 ID 冲突；仅页面展示，不做 PDF
+                        # 个体画像报告
                         if st.button("生成该生画像分析报告", key=f"ai_stu_report_btn_{sid}"):
                             with st.spinner(SPINNER_AI):
                                 txt, ok = ai.generate_student_diagnosis(raw)
