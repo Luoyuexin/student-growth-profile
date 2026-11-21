@@ -1,6 +1,6 @@
 """analysis_core K-means 聚类建模模块
 
-两级聚类：
+分两级聚类：
 - 分型（多维）：对六维得分向量做多维 K-means，K 在 [2,8] 内由
   肘部法则（SSE，权重 0.4）与轮廓系数（权重 0.6）加权联合确定，
   分年级独立建模；簇再由规则赋予可读的「成长类型」名称。
@@ -26,8 +26,8 @@ from config_setting import (
     get_grade_cluster_config,
 )
 
-ELBOW_WEIGHT = 0.4      # 肘部法则权重（作品书 3.4.1）
-SILHOUETTE_WEIGHT = 0.6  # 轮廓系数权重（高于肘部）
+ELBOW_WEIGHT = 0.4      # 肘部法则权重
+SILHOUETTE_WEIGHT = 0.6  # 轮廓系数权重
 
 
 def choose_best_k(X: np.ndarray, k_range=(2, 8), random_state: int = 42):
